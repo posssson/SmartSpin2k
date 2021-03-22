@@ -37,9 +37,6 @@
 //name of local file to save Physical Working Capacity in Spiffs
 #define userPWCFILENAME "/userPWC.txt"
 
-//Default Stepper Power
-#define STEPPER_POWER 1000
-
 //Hardware pin for rocker Switch 
 #define RADIO_PIN 27
 
@@ -51,15 +48,21 @@
 
 //Hardware pin for stepper Enable 
 #define ENABLE_PIN 13
-#define enablePinStepper ENABLE_PIN
 
 //Hardware pin for stepper step 
 #define STEP_PIN 25
-#define stepPinStepper STEP_PIN
 
 //Hardware pin for stepper dir
 #define DIR_PIN 33
-#define dirPinStepper DIR_PIN
+
+//Default Stepper Power
+#define STEPPER_POWER 1000
+
+//Stepper Acceleration in mm/s^2
+#define STEPPER_ACCELERATION 10
+
+//Stepper Max Speed in mm/s
+#define STEPPER_MAX_SPEED 100
 
 // TMC2208/TMC2224 SoftwareSerial receive pin
 #define STEPPERSERIAL_RX 14 

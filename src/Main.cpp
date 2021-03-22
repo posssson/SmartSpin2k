@@ -20,8 +20,6 @@ bool lastDir = true; //Stepper Last Direction
 unsigned long lastDebounceTime = 0; // the last time the output pin was toggled
 unsigned long debounceDelay = 500;  // the debounce time; increase if the output flickers
 
-//Stepper Speed - Lower is faster
-int maxStepperSpeed = 500;
 int shifterPosition = 0;
 int stepperPosition = 0;
 HardwareSerial stepperSerial(2);
@@ -136,15 +134,14 @@ void loop()
 
 void moveStepper(void *pvParameters)
 {
-  int acceleration = maxStepperSpeed;
   int targetPosition = 0;
   engine.init();
-  stepper = engine.stepperConnectToPin(stepPinStepper);
-  stepper->setDirectionPin(dirPinStepper);
-  stepper->setEnablePin(enablePinStepper);
+  stepper = engine.stepperConnectToPin(STEP_PIN);
+  stepper->setDirectionPin(DIR_PIN);
+  stepper->setEnablePin(ENABLE_PIN);
   stepper->setAutoEnable(true);
-  stepper->setSpeedInHz(100);   // 500 steps/s
-  stepper->setAcceleration(10); // 100 steps/s²
+  stepper->setSpeedInHz(STEPPER_MAX_SPEED);   // 500 steps/s
+  stepper->setAcceleration(STEPPER_ACCELERATION); // 100 steps/s²
 
   while (1)
   {
@@ -155,6 +152,13 @@ void moveStepper(void *pvParameters)
       stepper->moveTo(targetPosition);
     }
     vTaskDelay(100 / portTICK_PERIOD_MS);
+    if (connectedClientCount() > 0)
+    {
+      stepper->setAutoEnable(false); //Keep the stepper from rolling back due to head tube slack. Motor Driver still lowers power between moves
+    }else
+    {
+      stepper->setAutoEnable(true); //disable output FETs between moves so stepper can cool. Can still shift. 
+    }
 
     /*if (stepperPosition == targetPosition)
     {
