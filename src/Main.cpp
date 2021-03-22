@@ -140,8 +140,9 @@ void moveStepper(void *pvParameters)
   stepper->setDirectionPin(DIR_PIN);
   stepper->setEnablePin(ENABLE_PIN);
   stepper->setAutoEnable(true);
-  stepper->setSpeedInHz(STEPPER_MAX_SPEED);   // 500 steps/s
+  stepper->setSpeedInHz(STEPPER_MAX_SPEED);       // 500 steps/s
   stepper->setAcceleration(STEPPER_ACCELERATION); // 100 steps/s²
+  stepper->setDelayToDisable(1000);
 
   while (1)
   {
@@ -156,9 +157,10 @@ void moveStepper(void *pvParameters)
     {
       stepper->setAutoEnable(false); //Keep the stepper from rolling back due to head tube slack. Motor Driver still lowers power between moves
       stepper->enableOutputs();
-    }else
+    }
+    else
     {
-      stepper->setAutoEnable(true); //disable output FETs between moves so stepper can cool. Can still shift. 
+      stepper->setAutoEnable(true); //disable output FETs between moves so stepper can cool. Can still shift.
     }
 
     /*if (stepperPosition == targetPosition)
