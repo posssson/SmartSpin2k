@@ -51,12 +51,15 @@
 
 //Hardware pin for stepper Enable 
 #define ENABLE_PIN 13
+#define enablePinStepper ENABLE_PIN
 
 //Hardware pin for stepper step 
 #define STEP_PIN 25
+#define stepPinStepper STEP_PIN
 
 //Hardware pin for stepper dir
 #define DIR_PIN 33
+#define dirPinStepper DIR_PIN
 
 // TMC2208/TMC2224 SoftwareSerial receive pin
 #define STEPPERSERIAL_RX 14 

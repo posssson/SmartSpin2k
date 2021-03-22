@@ -11,6 +11,8 @@
 #include <SPIFFS.h>
 #include <HardwareSerial.h>
 
+#include "FastAccelStepper.h"
+
 String debugToHTML = "<br>Firmware Version " + String(FIRMWARE_VERSION);
 bool lastDir = true; //Stepper Last Direction
 
@@ -23,7 +25,9 @@ int maxStepperSpeed = 500;
 int shifterPosition = 0;
 int stepperPosition = 0;
 HardwareSerial stepperSerial(2);
-TMC2208Stepper driver(&SERIAL_PORT, R_SENSE); // Hardware Serial
+TMC2209Stepper driver(&SERIAL_PORT, R_SENSE, 0b00); // Hardware Serial
+FastAccelStepperEngine engine = FastAccelStepperEngine();
+FastAccelStepper *stepper = NULL;
 
 //Setup for BLEScan via shifters.
 int shiftersHoldForScan = SHIFTERS_HOLD_FOR_SCAN;
@@ -70,12 +74,12 @@ void setup()
   pinMode(SHIFT_UP_PIN, INPUT_PULLUP);   // Push-Button with input Pullup
   pinMode(SHIFT_DOWN_PIN, INPUT_PULLUP); // Push-Button with input Pullup
   pinMode(LED_PIN, OUTPUT);
-  pinMode(ENABLE_PIN, OUTPUT);
-  pinMode(DIR_PIN, OUTPUT);       // Stepper Direction Pin
-  pinMode(STEP_PIN, OUTPUT);      // Stepper Step Pin
-  digitalWrite(ENABLE_PIN, HIGH); //Should be called a disable Pin - High Disables FETs
-  digitalWrite(DIR_PIN, LOW);
-  digitalWrite(STEP_PIN, LOW);
+  //pinMode(ENABLE_PIN, OUTPUT);
+  //pinMode(DIR_PIN, OUTPUT);       // Stepper Direction Pin
+  //pinMode(STEP_PIN, OUTPUT);      // Stepper Step Pin
+  //digitalWrite(ENABLE_PIN, HIGH); //Should be called a disable Pin - High Disables FETs
+  //digitalWrite(DIR_PIN, LOW);
+  //digitalWrite(STEP_PIN, LOW);
   digitalWrite(LED_PIN, LOW);
 
   setupTMCStepperDriver();
@@ -124,10 +128,9 @@ void loop()
     debugToHTML = "<br>HTML Debug Truncated. Increase buffer if required.";
   }
 
-  #ifdef DEBUG_STACK
+#ifdef DEBUG_STACK
   Serial.printf("Stepper: %d \n", uxTaskGetStackHighWaterMark(moveStepperTask));
-  #endif
-  
+#endif
 }
 #endif
 
@@ -135,11 +138,25 @@ void moveStepper(void *pvParameters)
 {
   int acceleration = maxStepperSpeed;
   int targetPosition = 0;
+  engine.init();
+  stepper = engine.stepperConnectToPin(stepPinStepper);
+  stepper->setDirectionPin(dirPinStepper);
+  stepper->setEnablePin(enablePinStepper);
+  stepper->setAutoEnable(true);
+  stepper->setSpeedInHz(100);   // 500 steps/s
+  stepper->setAcceleration(10); // 100 steps/s²
 
   while (1)
   {
     targetPosition = shifterPosition + (userConfig.getIncline() * userConfig.getInclineMultiplier());
-    if (stepperPosition == targetPosition)
+
+    if (stepper)
+    {
+      stepper->moveTo(targetPosition);
+    }
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+
+    /*if (stepperPosition == targetPosition)
     {
       vTaskDelay(300 / portTICK_PERIOD_MS);
       if (connectedClientCount()==0)
@@ -179,7 +196,7 @@ void moveStepper(void *pvParameters)
         stepperPosition--;
         lastDir = false;
       }
-    }
+    }*/
   }
 }
 
