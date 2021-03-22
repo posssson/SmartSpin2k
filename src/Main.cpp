@@ -155,6 +155,7 @@ void moveStepper(void *pvParameters)
     if (connectedClientCount() > 0)
     {
       stepper->setAutoEnable(false); //Keep the stepper from rolling back due to head tube slack. Motor Driver still lowers power between moves
+      stepper->enableOutputs();
     }else
     {
       stepper->setAutoEnable(true); //disable output FETs between moves so stepper can cool. Can still shift. 
