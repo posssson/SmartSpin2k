@@ -37,9 +37,6 @@
 //name of local file to save Physical Working Capacity in Spiffs
 #define userPWCFILENAME "/userPWC.txt"
 
-//Hardware pin for rocker Switch 
-#define RADIO_PIN 27
-
 //Hardware pin for Shift Up
 #define SHIFT_UP_PIN 19
 
@@ -75,9 +72,6 @@
 
 // Match to your driver
 // SilentStepStick series use 0.11
-// UltiMachine Einsy and Archim2 boards use 0.2
-// Panucatt BSD2660 uses 0.1
-// Watterott TMC5160 uses 0.075
 #define R_SENSE 0.11f 
 
 //Hardware pin for indicator LED *note* internal LED on esp32 Dev board is pin 2 

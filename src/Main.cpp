@@ -68,16 +68,9 @@ void setup()
   userPWC.printFile();
   userPWC.saveToSPIFFS();
 
-  pinMode(RADIO_PIN, INPUT_PULLUP);
   pinMode(SHIFT_UP_PIN, INPUT_PULLUP);   // Push-Button with input Pullup
   pinMode(SHIFT_DOWN_PIN, INPUT_PULLUP); // Push-Button with input Pullup
   pinMode(LED_PIN, OUTPUT);
-  //pinMode(ENABLE_PIN, OUTPUT);
-  //pinMode(DIR_PIN, OUTPUT);       // Stepper Direction Pin
-  //pinMode(STEP_PIN, OUTPUT);      // Stepper Step Pin
-  //digitalWrite(ENABLE_PIN, HIGH); //Should be called a disable Pin - High Disables FETs
-  //digitalWrite(DIR_PIN, LOW);
-  //digitalWrite(STEP_PIN, LOW);
   digitalWrite(LED_PIN, LOW);
 
   setupTMCStepperDriver();
@@ -162,48 +155,6 @@ void moveStepper(void *pvParameters)
     {
       stepper->setAutoEnable(true); //disable output FETs between moves so stepper can cool. Can still shift.
     }
-
-    /*if (stepperPosition == targetPosition)
-    {
-      vTaskDelay(300 / portTICK_PERIOD_MS);
-      if (connectedClientCount()==0)
-      {
-        digitalWrite(ENABLE_PIN, HIGH); //disable output FETs so stepper can cool
-      }
-      vTaskDelay(300 / portTICK_PERIOD_MS);
-    }
-    else
-    {
-      digitalWrite(ENABLE_PIN, LOW);
-      vTaskDelay(1);
-
-      if (stepperPosition < targetPosition)
-      {
-        if (lastDir == false)
-        {
-          vTaskDelay(100); //Stepper was running in opposite direction. Give it time to stop.
-        }
-        digitalWrite(DIR_PIN, HIGH);
-        digitalWrite(STEP_PIN, HIGH);
-        delayMicroseconds(acceleration);
-        digitalWrite(STEP_PIN, LOW);
-        stepperPosition++;
-        lastDir = true;
-      }
-      else // must be (stepperPosition > targetPosition)
-      {
-        if (lastDir == true)
-        {
-          vTaskDelay(100); //Stepper was running in opposite direction. Give it time to stop.
-        }
-        digitalWrite(DIR_PIN, LOW);
-        digitalWrite(STEP_PIN, HIGH);
-        delayMicroseconds(acceleration);
-        digitalWrite(STEP_PIN, LOW);
-        stepperPosition--;
-        lastDir = false;
-      }
-    }*/
   }
 }
 
