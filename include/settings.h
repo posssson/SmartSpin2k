@@ -54,11 +54,11 @@
 // Default Stepper Power
 #define STEPPER_POWER 1000
 
-// Stepper Acceleration in steps/s^2
-#define STEPPER_ACCELERATION 240
+//Stepper Acceleration in steps/s^2
+#define STEPPER_ACCELERATION 3000
 
-// Stepper Max Speed in steps/s
-#define STEPPER_MAX_SPEED 2000
+//Stepper Max Speed in steps/s
+#define STEPPER_MAX_SPEED 1000
 
 // TMC2208/TMC2224 SoftwareSerial receive pin
 #define STEPPERSERIAL_RX 14
