@@ -11,10 +11,10 @@
 #define AUTO_FIRMWARE_UPDATE true
 
 // Default Bluetooth WiFi and MDNS Name
-#define DEVICE_NAME "SmartSpin2K"
+#define DEVICE_NAME "Harran"
 
 // Default WiFi Password
-#define DEFAULT_PASSWORD "password"
+#define DEFAULT_PASSWORD "winnietigrou"
 
 // default URL To get Updates From.
 // If changed you'll also need to get a root certificate from the new server
