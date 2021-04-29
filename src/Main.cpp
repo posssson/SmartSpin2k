@@ -16,10 +16,10 @@ bool lastDir       = true;  // Stepper Last Direction
 
 // Debounce Setup
 uint64_t lastDebounceTime = 0;    // the last time the output pin was toggled
-uint64_t debounceDelay    = 500;  // the debounce time; increase if the output flickers
+uint64_t debounceDelay    = 600;  // the debounce time; increase if the output flickers
 
 // Stepper Speed - Lower is faster
-int maxStepperSpeed = 500;
+int maxStepperSpeed = 600;
 int shifterPosition = 0;
 int stepperPosition = 0;
 HardwareSerial stepperSerial(2);
@@ -153,6 +153,7 @@ void moveStepper(void *pvParameters) {
         digitalWrite(STEP_PIN, HIGH);
         delayMicroseconds(acceleration);
         digitalWrite(STEP_PIN, LOW);
+        delayMicroseconds(acceleration);
         stepperPosition++;
         lastDir = true;
       } else {  // must be (stepperPosition > targetPosition)
@@ -164,6 +165,7 @@ void moveStepper(void *pvParameters) {
         digitalWrite(STEP_PIN, HIGH);
         delayMicroseconds(acceleration);
         digitalWrite(STEP_PIN, LOW);
+        delayMicroseconds(acceleration);
         stepperPosition--;
         lastDir = false;
       }
