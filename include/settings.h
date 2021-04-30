@@ -11,10 +11,10 @@
 #define AUTO_FIRMWARE_UPDATE true
 
 // Default Bluetooth WiFi and MDNS Name
-#define DEVICE_NAME "Harran"
+#define DEVICE_NAME "SmartSpin2K"
 
 // Default WiFi Password
-#define DEFAULT_PASSWORD "winnietigrou"
+#define DEFAULT_PASSWORD "password"
 
 // default URL To get Updates From.
 // If changed you'll also need to get a root certificate from the new server
@@ -99,7 +99,7 @@
 
 // Name of default Power Meter. any connects to anything, none connects to
 // nothing.
-#define CONNECTED_POWER_METER "any"
+#define CONNECTED_POWER_METER "ASSIOMA36290L"
 
 // Name of default heart monitor. any connects to anything, none connects to
 // nothing.

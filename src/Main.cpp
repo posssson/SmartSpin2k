@@ -133,6 +133,7 @@ void moveStepper(void *pvParameters) {
 
   while (1) {
     targetPosition = shifterPosition + (userConfig.getIncline() * userConfig.getInclineMultiplier());
+    //debugDirector("Cadence =" +String(userConfig.getSimulatedCad()),true,false);
     if (stepperPosition == targetPosition) {
       vTaskDelay(300 / portTICK_PERIOD_MS);
       if (connectedClientCount() == 0) {
@@ -153,7 +154,8 @@ void moveStepper(void *pvParameters) {
         digitalWrite(STEP_PIN, HIGH);
         delayMicroseconds(acceleration);
         digitalWrite(STEP_PIN, LOW);
-        delayMicroseconds(acceleration);
+        delayMicroseconds(acceleration/2);
+        vTaskDelay(acceleration/2);
         stepperPosition++;
         lastDir = true;
       } else {  // must be (stepperPosition > targetPosition)
@@ -257,7 +259,7 @@ void debugDirector(String textToPrint, bool newline, bool telegram) {
     debugToHTML += textToPrint;
   }
 #ifdef USE_TELEGRAM
-  if (telegram) {
+  if (false) {
     sendTelegram(textToPrint);
   }
 #endif
