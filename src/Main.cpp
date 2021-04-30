@@ -274,7 +274,7 @@ void setupTMCStepperDriver() {
   debugDirector(" read:ms=" + msread);
 
   driver.rms_current(userConfig.getStepperPower());  // Set motor RMS current
-  driver.microsteps(4);                              // Set microsteps to 1/8th
+  //driver.microsteps(4);                              // Set microsteps to 1/8th
   driver.irun(255);
   driver.ihold(200);      // hold current % 0-255
   driver.iholddelay(10);  // Controls the number of clock cycles for motor

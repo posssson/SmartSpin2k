@@ -141,7 +141,7 @@ void computeERG(int currentWatts, int setPoint) {
   int newIncline            = incline;
   int amountToChangeIncline = 0;
 
-  if (cad > 20) {
+  if (cad > 50 and currentWatts > 100) {
     // 30  is amount of watts per shift. Was 50, seemed like too much...
     if (abs(currentWatts - setPoint) < 30) {
       amountToChangeIncline = (currentWatts - setPoint) * 1;
@@ -160,6 +160,9 @@ void computeERG(int currentWatts, int setPoint) {
         amountToChangeIncline = -(userConfig.getShiftStep() * 5);
       }
     }
+  } else{
+    incline = 0;
+    amountToChangeIncline = 0;
   }
 
   newIncline = incline - amountToChangeIncline;  //  }
@@ -168,7 +171,7 @@ void computeERG(int currentWatts, int setPoint) {
 
 void computeCSC() {  // What was SIG smoking when they came up with the Cycling
                      // Speed and Cadence Characteristic?
-  if (userConfig.getSimulatedCad() > 0) {
+  if (userConfig.getSimulatedCad() > 50) {
     float crankRevPeriod = (60 * 1024) / userConfig.getSimulatedCad();
     spinBLEClient.cscCumulativeCrankRev++;
     spinBLEClient.cscLastCrankEvtTime += crankRevPeriod;
