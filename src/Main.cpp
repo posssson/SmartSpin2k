@@ -16,7 +16,7 @@ bool lastDir       = true;  // Stepper Last Direction
 
 // Debounce Setup
 uint64_t lastDebounceTime = 0;    // the last time the output pin was toggled
-uint64_t debounceDelay    = 600;  // the debounce time; increase if the output flickers
+uint64_t debounceDelay    = 1000;  // the debounce time; increase if the output flickers
 
 // Stepper Speed - Lower is faster
 int maxStepperSpeed = 600;
@@ -154,10 +154,10 @@ void moveStepper(void *pvParameters) {
         digitalWrite(STEP_PIN, HIGH);
         delayMicroseconds(acceleration);
         digitalWrite(STEP_PIN, LOW);
-        delayMicroseconds(acceleration/2);
-        vTaskDelay(acceleration/2);
+        delayMicroseconds(acceleration);
         stepperPosition++;
         lastDir = true;
+        
       } else {  // must be (stepperPosition > targetPosition)
         if (lastDir == true) {
           vTaskDelay(100);  // Stepper was running in opposite
@@ -167,7 +167,7 @@ void moveStepper(void *pvParameters) {
         digitalWrite(STEP_PIN, HIGH);
         delayMicroseconds(acceleration);
         digitalWrite(STEP_PIN, LOW);
-        delayMicroseconds(acceleration);
+        //delayMicroseconds(acceleration);
         stepperPosition--;
         lastDir = false;
       }
