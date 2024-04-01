@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added pass through shifting in both ERG and SIM mode. 
 - Refined and added BLE custom characteristics for upcoming configuration app. 
 - Added CSC Service to BLE server.
+- Added Yosuda-007C.
+- Updated wiki banner.
 
 ### Changed
 - Updated communications overview picture.
