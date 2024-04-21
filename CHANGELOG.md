@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed some free play in the IC4 insert.  
 - Added Bowflex Velocore bike.
 - Added another Y cable picture for Peloton. 
+- Moved wire guard up 1 mm.
 
 
 ## [23.6.28]
