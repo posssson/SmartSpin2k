@@ -29,7 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Increased the default incline multiplier to 5.
 - Added more robust activity monitoring and reboot every 30 minutes if there is no activity.
 - Updated all references of SmartSkin2K to SmartSpin2k for consistency.
-- Fixed bug where BT scanner "Loading" wouldn't disappear if "NONE" and "NONE" were selected. 
+- Fixed bug where BT scanner "Loading" wouldn't disappear if "NONE" and "NONE" were selected.
+- Fixed Bug where ERG setpoint state wasn't going to the positive control loop correctly.  
 
 ### Hardware
 - added Yesoul S3.
