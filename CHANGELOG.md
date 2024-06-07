@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added Bowflex Velocore bike.
 - Added another Y cable picture for Peloton. 
 - Moved wire guard up 1 mm.
+- Added JLL-IC400
 
 
 ## [23.6.28]
