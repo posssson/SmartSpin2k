@@ -131,7 +131,7 @@ void PowerTable::processPowerValue(PowerBuffer& powerBuffer, int cadence, Measur
       if (powerBuffer.powerEntry[POWER_SAMPLES - 1].readings == 1) {  // If buffer is full, create a new table entry and clear the buffer.
         this->newEntry(powerBuffer);
         this->toLog();
-        // this->_manageSaveState();
+        this->_manageSaveState();
         powerBuffer.reset();
       }
     } else {  // Reading was outside the range - clear the buffer and start over.
@@ -218,11 +218,21 @@ void PowerTable::newEntry(PowerBuffer& powerBuffer) {
     return;
   }
 
-  SS2K_LOG(POWERTABLE_LOG_TAG, "Averaged Entry: watts=%f, cad=%f, targetPosition=%d", watts, cad, targetPosition);
-
   // To start working on the PowerTable, we need to calculate position in the table for the new entry
-  int i = round(watts / POWERTABLE_WATT_INCREMENT);
-  int k = round(cad - MINIMUM_TABLE_CAD) / POWERTABLE_CAD_INCREMENT;
+  int i = round(watts / (float)POWERTABLE_WATT_INCREMENT);
+  int k = round((cad - (float)MINIMUM_TABLE_CAD) / (float)POWERTABLE_CAD_INCREMENT);
+  SS2K_LOG(POWERTABLE_LOG_TAG, "Averaged Entry: watts=%f, cad=%f, targetPosition=%d, (%d)(%d)", watts, cad, targetPosition, k, i);
+
+  // Ensure k is within valid range
+  if (k < 0 || k >= POWERTABLE_CAD_SIZE) {
+    SS2K_LOG(POWERTABLE_LOG_TAG, "Cad index was out of range");
+    return;
+  }
+  // Ensure i is within valid range
+  if (i < 0 || i >= POWERTABLE_WATT_SIZE) {
+    SS2K_LOG(POWERTABLE_LOG_TAG, "Watt index was out of range");
+    return;
+  }
 
   // Prohibit entries that are less than the number to the left
   if (i > 0) {
@@ -270,178 +280,168 @@ void PowerTable::newEntry(PowerBuffer& powerBuffer) {
 
 // Helper function to solve linear equation
 float linearFit(const std::vector<float>& x, const std::vector<float>& y, float wattage) {
-    float x1 = x[0], y1 = y[0];
-    float x2 = x[1], y2 = y[1];
-    return y1 + (y2 - y1) * (wattage - x1) / (x2 - x1);
+  float x1 = x[0], y1 = y[0];
+  float x2 = x[1], y2 = y[1];
+  return y1 + (y2 - y1) * (wattage - x1) / (x2 - x1);
 }
 
 // Helper function to solve quadratic equation
 float quadraticFit(const std::vector<float>& x, const std::vector<float>& y, float wattage) {
-    float x1 = x[0], y1 = y[0];
-    float x2 = x[1], y2 = y[1];
-    float x3 = x[2], y3 = y[2];
+  float x1 = x[0], y1 = y[0];
+  float x2 = x[1], y2 = y[1];
+  float x3 = x[2], y3 = y[2];
 
-    float a = ((y2 - y1) / (x2 - x1) - (y3 - y2) / (x3 - x2)) / (x3 - x1);
-    float b = (y2 - y1) / (x2 - x1) - a * (x2 + x1);
-    float c = y1 - a * x1 * x1 - b * x1;
+  float a = ((y2 - y1) / (x2 - x1) - (y3 - y2) / (x3 - x2)) / (x3 - x1);
+  float b = (y2 - y1) / (x2 - x1) - a * (x2 + x1);
+  float c = y1 - a * x1 * x1 - b * x1;
 
-    return a * wattage * wattage + b * wattage + c;
+  return a * wattage * wattage + b * wattage + c;
 }
 
 // Helper function to perform linear interpolation between cadence lines
-float cadLinearFit(float wattage, float cad1, float pos1, float cad2, float pos2, float targetCadence) { 
-    return pos1 + (pos2 - pos1) * (targetCadence - cad1) / (cad2 - cad1); 
-}
+float cadLinearFit(float wattage, float cad1, float pos1, float cad2, float pos2, float targetCadence) { return pos1 + (pos2 - pos1) * (targetCadence - cad1) / (cad2 - cad1); }
 
 int32_t PowerTable::lookup(int watts, int cad) {
-    int cadIndex = (cad - MINIMUM_TABLE_CAD) / POWERTABLE_CAD_INCREMENT;
-    int i        = watts / POWERTABLE_WATT_INCREMENT;
+  int cadIndex = (cad - MINIMUM_TABLE_CAD) / POWERTABLE_CAD_INCREMENT;
+  int i        = watts / POWERTABLE_WATT_INCREMENT;
 
-    if (cadIndex < 0)
-        cadIndex = 0;
-    else if (cadIndex >= POWERTABLE_CAD_SIZE)
-        cadIndex = POWERTABLE_CAD_SIZE - 1;
+  if (cadIndex < 0)
+    cadIndex = 0;
+  else if (cadIndex >= POWERTABLE_CAD_SIZE)
+    cadIndex = POWERTABLE_CAD_SIZE - 1;
 
-    if (i < 0)
-        i = 0;
-    else if (i >= POWERTABLE_WATT_SIZE)
-        i = POWERTABLE_WATT_SIZE - 1;
+  if (i < 0)
+    i = 0;
+  else if (i >= POWERTABLE_WATT_SIZE)
+    i = POWERTABLE_WATT_SIZE - 1;
 
-    // Check if the exact data point is available and within the POWERTABLE_WATT_INCREMENT range
-    if (std::abs((i * POWERTABLE_WATT_INCREMENT) - watts) <= POWERTABLE_WATT_INCREMENT && 
-        this->tableRow[cadIndex].tableEntry[i].targetPosition != INT_MIN) {
-        return this->tableRow[cadIndex].tableEntry[i].targetPosition * 100;
+  // Check if the exact data point is available and within the POWERTABLE_WATT_INCREMENT range
+  if (std::abs((i * POWERTABLE_WATT_INCREMENT) - watts) <= POWERTABLE_WATT_INCREMENT && this->tableRow[cadIndex].tableEntry[i].targetPosition != INT_MIN) {
+    return this->tableRow[cadIndex].tableEntry[i].targetPosition * 100;
+  }
+
+  std::vector<float> validWattages;
+  std::vector<float> validPositions;
+
+  for (int j = 0; j < POWERTABLE_WATT_SIZE; ++j) {
+    if (this->tableRow[cadIndex].tableEntry[j].targetPosition != INT_MIN) {
+      validWattages.push_back(j * POWERTABLE_WATT_INCREMENT);
+      validPositions.push_back(this->tableRow[cadIndex].tableEntry[j].targetPosition);
+    }
+  }
+
+  // If no valid data in this cadence line, try to collect data from other lines
+  if (validWattages.empty()) {
+    for (int k = 0; k < POWERTABLE_CAD_SIZE; ++k) {
+      if (k == cadIndex) continue;
+      for (int j = 0; j < POWERTABLE_WATT_SIZE; ++j) {
+        if (this->tableRow[k].tableEntry[j].targetPosition != INT_MIN) {
+          validWattages.push_back(j * POWERTABLE_WATT_INCREMENT);
+          validPositions.push_back(this->tableRow[k].tableEntry[j].targetPosition);
+        }
+      }
+    }
+  }
+
+  // Interpolate or extrapolate if necessary
+  if (validWattages.size() >= 2) {
+    // Check if we have enough data in the target cadence line
+    std::vector<float> cadPositions;
+    for (int j = 0; j < POWERTABLE_WATT_SIZE; ++j) {
+      if (this->tableRow[cadIndex].tableEntry[j].targetPosition == INT_MIN) {
+        float extrapolatedValue = INT_MIN;
+        std::vector<std::pair<int, float>> surroundingPositions;
+
+        for (int k = 0; k < POWERTABLE_CAD_SIZE; ++k) {
+          if (k == cadIndex) continue;
+          if (this->tableRow[k].tableEntry[j].targetPosition != INT_MIN) {
+            surroundingPositions.push_back(std::make_pair(k, this->tableRow[k].tableEntry[j].targetPosition));
+          }
+        }
+
+        if (surroundingPositions.size() >= 2) {
+          // Sort surrounding positions by their cadence index distance to the target cadence
+          std::sort(surroundingPositions.begin(), surroundingPositions.end(),
+                    [cadIndex](const std::pair<int, float>& a, const std::pair<int, float>& b) { return abs(a.first - cadIndex) < abs(b.first - cadIndex); });
+
+          // Use the closest two surrounding positions to perform linear interpolation
+          float cad1 = surroundingPositions[0].first * POWERTABLE_CAD_INCREMENT + MINIMUM_TABLE_CAD;
+          float pos1 = surroundingPositions[0].second;
+          float cad2 = surroundingPositions[1].first * POWERTABLE_CAD_INCREMENT + MINIMUM_TABLE_CAD;
+          float pos2 = surroundingPositions[1].second;
+
+          extrapolatedValue = cadLinearFit(watts, cad1, pos1, cad2, pos2, cad);
+        }
+
+        cadPositions.push_back(extrapolatedValue);
+      } else {
+        cadPositions.push_back(this->tableRow[cadIndex].tableEntry[j].targetPosition);
+      }
     }
 
-    std::vector<float> validWattages;
-    std::vector<float> validPositions;
+    validWattages.clear();
+    validPositions.clear();
 
     for (int j = 0; j < POWERTABLE_WATT_SIZE; ++j) {
-        if (this->tableRow[cadIndex].tableEntry[j].targetPosition != INT_MIN) {
-            validWattages.push_back(j * POWERTABLE_WATT_INCREMENT);
-            validPositions.push_back(this->tableRow[cadIndex].tableEntry[j].targetPosition);
-        }
+      if (cadPositions[j] != INT_MIN) {
+        validWattages.push_back(j * POWERTABLE_WATT_INCREMENT);
+        validPositions.push_back(cadPositions[j]);
+      }
     }
 
-    // If no valid data in this cadence line, try to collect data from other lines
-    if (validWattages.empty()) {
-        for (int k = 0; k < POWERTABLE_CAD_SIZE; ++k) {
-            if (k == cadIndex) continue;
-            for (int j = 0; j < POWERTABLE_WATT_SIZE; ++j) {
-                if (this->tableRow[k].tableEntry[j].targetPosition != INT_MIN) {
-                    validWattages.push_back(j * POWERTABLE_WATT_INCREMENT);
-                    validPositions.push_back(this->tableRow[k].tableEntry[j].targetPosition);
-                }
-            }
-        }
+    // Ensure unique data points are used for interpolation
+    std::vector<std::pair<float, float>> uniquePoints;
+    for (size_t idx = 0; idx < validWattages.size(); ++idx) {
+      uniquePoints.emplace_back(validWattages[idx], validPositions[idx]);
     }
 
-    // Interpolate or extrapolate if necessary
-    if (validWattages.size() >= 2) {
-        // Check if we have enough data in the target cadence line
-        std::vector<float> cadPositions;
-        for (int j = 0; j < POWERTABLE_WATT_SIZE; ++j) {
-            if (this->tableRow[cadIndex].tableEntry[j].targetPosition == INT_MIN) {
-                float extrapolatedValue = INT_MIN;
-                std::vector<std::pair<int, float>> surroundingPositions;
+    std::sort(uniquePoints.begin(), uniquePoints.end());
+    uniquePoints.erase(std::unique(uniquePoints.begin(), uniquePoints.end()), uniquePoints.end());
 
-                for (int k = 0; k < POWERTABLE_CAD_SIZE; ++k) {
-                    if (k == cadIndex) continue;
-                    if (this->tableRow[k].tableEntry[j].targetPosition != INT_MIN) {
-                        surroundingPositions.push_back(std::make_pair(k, this->tableRow[k].tableEntry[j].targetPosition));
-                    }
-                }
+    validWattages.clear();
+    validPositions.clear();
 
-                if (surroundingPositions.size() >= 2) {
-                    // Sort surrounding positions by their cadence index distance to the target cadence
-                    std::sort(surroundingPositions.begin(), surroundingPositions.end(),
-                              [cadIndex](const std::pair<int, float>& a, const std::pair<int, float>& b) { return abs(a.first - cadIndex) < abs(b.first - cadIndex); });
-
-                    // Use the closest two surrounding positions to perform linear interpolation
-                    float cad1 = surroundingPositions[0].first * POWERTABLE_CAD_INCREMENT + MINIMUM_TABLE_CAD;
-                    float pos1 = surroundingPositions[0].second;
-                    float cad2 = surroundingPositions[1].first * POWERTABLE_CAD_INCREMENT + MINIMUM_TABLE_CAD;
-                    float pos2 = surroundingPositions[1].second;
-
-                    extrapolatedValue = cadLinearFit(watts, cad1, pos1, cad2, pos2, cad);
-                }
-
-                cadPositions.push_back(extrapolatedValue);
-            } else {
-                cadPositions.push_back(this->tableRow[cadIndex].tableEntry[j].targetPosition);
-            }
-        }
-
-        validWattages.clear();
-        validPositions.clear();
-
-        for (int j = 0; j < POWERTABLE_WATT_SIZE; ++j) {
-            if (cadPositions[j] != INT_MIN) {
-                validWattages.push_back(j * POWERTABLE_WATT_INCREMENT);
-                validPositions.push_back(cadPositions[j]);
-            }
-        }
-
-        // Ensure unique data points are used for interpolation
-        std::vector<std::pair<float, float>> uniquePoints;
-        for (size_t idx = 0; idx < validWattages.size(); ++idx) {
-            uniquePoints.emplace_back(validWattages[idx], validPositions[idx]);
-        }
-
-        std::sort(uniquePoints.begin(), uniquePoints.end());
-        uniquePoints.erase(std::unique(uniquePoints.begin(), uniquePoints.end()), uniquePoints.end());
-
-        validWattages.clear();
-        validPositions.clear();
-
-        for (const auto& point : uniquePoints) {
-            validWattages.push_back(point.first);
-            validPositions.push_back(point.second);
-        }
-
-        if (watts < validWattages.front()) {
-            SS2K_LOG(POWERTABLE_LOG_TAG, "Using linear interpolation for low wattage: %d", watts);
-            SS2K_LOG(POWERTABLE_LOG_TAG, "Valid wattages: %f, %f", validWattages.front(), validWattages[1]);
-            SS2K_LOG(POWERTABLE_LOG_TAG, "Valid positions: %f, %f", validPositions.front(), validPositions[1]);
-            return linearFit({validWattages.front(), validWattages[1]}, {validPositions.front(), validPositions[1]}, watts) * 100;
-        }
-        if (watts > validWattages.back()) {
-            SS2K_LOG(POWERTABLE_LOG_TAG, "Using linear interpolation for high wattage: %d", watts);
-            SS2K_LOG(POWERTABLE_LOG_TAG, "Valid wattages: %f, %f", validWattages[validWattages.size() - 2], validWattages.back());
-            SS2K_LOG(POWERTABLE_LOG_TAG, "Valid positions: %f, %f", validPositions[validPositions.size() - 2], validPositions.back());
-            return linearFit({validWattages[validWattages.size() - 2], validWattages.back()}, {validPositions[validPositions.size() - 2], validPositions.back()}, watts) * 100;
-        }
-
-        if (validWattages.size() == 2) {
-            SS2K_LOG(POWERTABLE_LOG_TAG, "Using linear interpolation within valid range for wattage: %d", watts);
-            SS2K_LOG(POWERTABLE_LOG_TAG, "Valid wattages: ");
-            for (const auto& vw : validWattages) SS2K_LOG(POWERTABLE_LOG_TAG, "%f ", vw);
-            SS2K_LOG(POWERTABLE_LOG_TAG, "Valid positions: ");
-            for (const auto& vp : validPositions) SS2K_LOG(POWERTABLE_LOG_TAG, "%f ", vp);
-            return linearFit(validWattages, validPositions, watts) * 100;
-        } else {
-            SS2K_LOG(POWERTABLE_LOG_TAG, "Using quadratic interpolation within valid range for wattage: %d", watts);
-            SS2K_LOG(POWERTABLE_LOG_TAG, "Valid wattages: ");
-            for (const auto& vw : validWattages) SS2K_LOG(POWERTABLE_LOG_TAG, "%f ", vw);
-            SS2K_LOG(POWERTABLE_LOG_TAG, "Valid positions: ");
-            for (const auto& vp : validPositions) SS2K_LOG(POWERTABLE_LOG_TAG, "%f ", vp);
-            return quadraticFit(validWattages, validPositions, watts) * 100;
-        }
+    for (const auto& point : uniquePoints) {
+      validWattages.push_back(point.first);
+      validPositions.push_back(point.second);
     }
 
-    SS2K_LOG(POWERTABLE_LOG_TAG, "Insufficient data to calculate position.");
-    return RETURN_ERROR;
+    if (watts < validWattages.front()) {
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Using linear interpolation for low wattage: %d", watts);
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Valid wattages: %f, %f", validWattages.front(), validWattages[1]);
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Valid positions: %f, %f", validPositions.front(), validPositions[1]);
+      return linearFit({validWattages.front(), validWattages[1]}, {validPositions.front(), validPositions[1]}, watts) * 100;
+    }
+    if (watts > validWattages.back()) {
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Using linear interpolation for high wattage: %d", watts);
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Valid wattages: %f, %f", validWattages[validWattages.size() - 2], validWattages.back());
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Valid positions: %f, %f", validPositions[validPositions.size() - 2], validPositions.back());
+      return linearFit({validWattages[validWattages.size() - 2], validWattages.back()}, {validPositions[validPositions.size() - 2], validPositions.back()}, watts) * 100;
+    }
+
+    if (validWattages.size() == 2) {
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Using linear interpolation within valid range for wattage: %d", watts);
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Valid wattages: ");
+      for (const auto& vw : validWattages) SS2K_LOG(POWERTABLE_LOG_TAG, "%f ", vw);
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Valid positions: ");
+      for (const auto& vp : validPositions) SS2K_LOG(POWERTABLE_LOG_TAG, "%f ", vp);
+      return linearFit(validWattages, validPositions, watts) * 100;
+    } else {
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Using quadratic interpolation within valid range for wattage: %d", watts);
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Valid wattages: ");
+      for (const auto& vw : validWattages) SS2K_LOG(POWERTABLE_LOG_TAG, "%f ", vw);
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Valid positions: ");
+      for (const auto& vp : validPositions) SS2K_LOG(POWERTABLE_LOG_TAG, "%f ", vp);
+      return quadraticFit(validWattages, validPositions, watts) * 100;
+    }
+  }
+
+  SS2K_LOG(POWERTABLE_LOG_TAG, "Insufficient data to calculate position.");
+  return RETURN_ERROR;
 }
 
 bool PowerTable::_manageSaveState() {
-  /* BIG_TABLE TODO!
-  Implement saving on a timer. POWER_TABLE_SAVE_INTERVAL is a defined interval (in ms) to save the data.
-  Implement checking the file for quality before loading. Only load if the total number of readings on the saved table is greater than the total number of readings in the current
-  active table. Don't load the table until we have at least 3 reliable positions currently found in the active table before loading, and then apply an offset to the saved data
-  because we don't know the starting resistance position since there is no physical homing on power up.
-  */
-
-  // Open file for reading
+  // Check if the table has been loaded in this session
   if (!_hasBeenLoadedThisSession) {
     SS2K_LOG(POWERTABLE_LOG_TAG, "Loading Power Table....");
     File file = LittleFS.open(POWER_TABLE_FILENAME, FILE_READ);
@@ -465,27 +465,68 @@ bool PowerTable::_manageSaveState() {
     int size;
     file.read((uint8_t*)&size, sizeof(size));
 
+    // Initialize a counter for reliable positions
+    int reliablePositions = 0;
+    std::vector<int> offsetDifferences;
+
     // Read table entries
     for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
       for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
-        file.read((uint8_t*)&this->tableRow[i].tableEntry[j].targetPosition, sizeof(this->tableRow[i].tableEntry[j].targetPosition));
-        file.read((uint8_t*)&this->tableRow[i].tableEntry[j].readings, sizeof(this->tableRow[i].tableEntry[j].readings));
+        int savedTargetPosition;
+        int savedReadings;
+        file.read((uint8_t*)&savedTargetPosition, sizeof(savedTargetPosition));
+        file.read((uint8_t*)&savedReadings, sizeof(savedReadings));
+
+        // Check if we have at least 3 reliable positions in the active table
+        if (this->tableRow[i].tableEntry[j].targetPosition != INT_MIN && savedTargetPosition != INT_MIN) {
+          int offset = this->tableRow[i].tableEntry[j].targetPosition - savedTargetPosition;
+          offsetDifferences.push_back(offset);
+          reliablePositions++;
+        }
+
+        // Load table entries
+        this->tableRow[i].tableEntry[j].targetPosition = savedTargetPosition;
+        this->tableRow[i].tableEntry[j].readings       = savedReadings;
       }
     }
 
-    _hasBeenLoadedThisSession = true;
-
-    // Close the file
     file.close();
-    return true;
+
+    // Ensure we have at least 3 reliable positions before loading
+    if (reliablePositions >= 3) {
+      int totalOffset = 0;
+      for (int offset : offsetDifferences) {
+        totalOffset += offset;
+      }
+      int averageOffset = totalOffset / reliablePositions;
+
+      // Apply the offset to all loaded positions except for INT_MIN values
+      for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
+        for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
+          if (this->tableRow[i].tableEntry[j].targetPosition != INT_MIN) {
+            this->tableRow[i].tableEntry[j].targetPosition += averageOffset;
+          }
+        }
+      }
+
+      _hasBeenLoadedThisSession = true;
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Power Table loaded with an offset of %d.", averageOffset);
+    } else {
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Not enough reliable positions to load the Power Table.");
+      this->_save();
+      return false;
+    }
   }
+
+  // Implement saving on a timer
   if ((millis() - lastSaveTime) > POWER_TABLE_SAVE_INTERVAL) {
     this->_save();
   }
+  return true;
 }
 
 bool PowerTable::_save() {
-  // Delete existing file, otherwise the configuration is appended to the file
+  // Delete existing file to avoid appending
   LittleFS.remove(POWER_TABLE_FILENAME);
 
   // Open file for writing
@@ -539,7 +580,7 @@ void PowerTable::toLog() {
   // Print header row
   String headerRow = "CAD\\WAT";
   for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
-    snprintf(buffer, sizeof(buffer), "%*d", maxLen, j * POWERTABLE_WATT_INCREMENT);
+    snprintf(buffer, sizeof(buffer), "%*d w", maxLen, j * POWERTABLE_WATT_INCREMENT);
     headerRow += String(" | ") + buffer;
   }
   SS2K_LOG(POWERTABLE_LOG_TAG, "%s", headerRow.c_str());
