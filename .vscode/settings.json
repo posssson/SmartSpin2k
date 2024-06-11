@@ -58,7 +58,8 @@
         "string_view": "cpp",
         "set": "cpp",
         "iostream": "cpp",
-        "*.dontuse": "cpp"
+        "*.dontuse": "cpp",
+        "core": "cpp"
     },
     "cSpell.words": [
         "Appender",
