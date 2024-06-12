@@ -254,28 +254,25 @@ const char * const DEFAULT_PASSWORD = "password";
 #define RUNTIMECONFIG_JSON_SIZE 512 + DEBUG_LOG_BUFFER_SIZE
 
 // PowerTable Version
-#define TABLE_VERSION 1
+#define TABLE_VERSION 3
 
 /* Number of entries in the ERG Power Lookup Table
  This is currently maintained as to keep memory usage lower and reduce the print output of the table.
  It can be depreciated in the future should we decide to remove logging of the torque table. Then it should be calculated in ERG_Mode.cpp
  by dividing userConfig->getMaxWatts() by POWERTABLE_INCREMENT.  */
-#define POWERTABLE_WATT_SIZE 20
+#define POWERTABLE_WATT_SIZE 40
 
 // Size of the second dimension of the table. The base (starting point) is calculated off of MINUMUM_TABLE_CAD
-#define POWERTABLE_CAD_SIZE 4
+#define POWERTABLE_CAD_SIZE 10
 
 // Size of increments (in watts) for the ERG Lookup Table. This needs to be a decimal for proper calculation.
-#define POWERTABLE_WATT_INCREMENT 50
+#define POWERTABLE_WATT_INCREMENT 30
 
 // Size of increments (in CAD) for the ERG Lookup Table. This needs to be a decimal for proper calculation. 
-#define POWERTABLE_CAD_INCREMENT 10
+#define POWERTABLE_CAD_INCREMENT 5
 
 // Number of similar power samples to take before writing to the Power Table
 #define POWER_SAMPLES 5
-
-// The Array position of the most reliable Power Table stepper position according to testing data.
-#define MOST_DEPENDABLE_TORQUE_ENTRY 2
 
 // How often in ms to save the power table if no new data is added and user is pedaling.
 #define POWER_TABLE_SAVE_INTERVAL 240000
@@ -283,7 +280,12 @@ const char * const DEFAULT_PASSWORD = "password";
 // Normal cadence value (used in power table and other areas)
 #define NORMAL_CAD 90
 
-#define MINIMUM_TABLE_CAD 70
+// Where does the CAD portion of the table start?
+#define MINIMUM_TABLE_CAD 60
+
+//Minimum positions recorded in the active table before attempting to load the saved table.
+//Increase this value if the offset for the loaded table is inaccurate.
+#define MINIMUM_RELIABLE_POSITIONS 3
 
 // Temperature of the ESP32 at which to start reducing the power output of the stepper motor driver.
 #define THROTTLE_TEMP 85

@@ -76,10 +76,6 @@ void ergTaskLoop(void* pvParameters) {
       powerTable.setStepperMinMax();
     }
 
-    // Check for saved torque table if we have < 3 positions calculated. If so, load saved torque table.
-
-    // Save Torque table if we currently have more positions calculated than the saved version.
-
     loopCounter++;
 
 #ifdef DEBUG_STACK
@@ -116,7 +112,9 @@ int PowerBuffer::getReadings() {
 }
 
 void PowerTable::processPowerValue(PowerBuffer& powerBuffer, int cadence, Measurement watts) {
-  if ((cadence >= (NORMAL_CAD - 20)) && (cadence <= (NORMAL_CAD + 20)) && (watts.getValue() > 10) && (watts.getValue() < (POWERTABLE_WATT_SIZE * POWERTABLE_WATT_INCREMENT))) {
+  if ((cadence >= (MINIMUM_TABLE_CAD - (POWERTABLE_CAD_INCREMENT / 2))) &&
+      (cadence <= (MINIMUM_TABLE_CAD + (POWERTABLE_CAD_INCREMENT * POWERTABLE_CAD_SIZE) - (POWERTABLE_CAD_SIZE / 2))) && (watts.getValue() > 10) &&
+      (watts.getValue() < (POWERTABLE_WATT_SIZE * POWERTABLE_WATT_INCREMENT))) {
     if (powerBuffer.powerEntry[0].readings == 0) {
       // Take Initial reading
       powerBuffer.set(0);
@@ -241,6 +239,12 @@ void PowerTable::newEntry(PowerBuffer& powerBuffer) {
         if (this->tableRow[k].tableEntry[j].targetPosition >= targetPosition) {
           SS2K_LOG(POWERTABLE_LOG_TAG, "Target Slot (%d)(%d)(%d)(%d) was less than previous (%d)(%d)(%d)", this->tableRow[k].tableEntry[j].targetPosition, k, i,
                    (int)targetPosition, k, j, this->tableRow[k].tableEntry[j].targetPosition);
+          // downvote the blocking entry
+          this->tableRow[k].tableEntry[j].readings--;
+          // reset the blocking entry
+          if (this->tableRow[k].tableEntry[j].readings < 1) {
+            this->tableRow[k].tableEntry[j].targetPosition = INT_MIN;
+          }
           return;
         }
         break;  // Found a valid left neighbor
@@ -255,6 +259,12 @@ void PowerTable::newEntry(PowerBuffer& powerBuffer) {
         if (targetPosition >= this->tableRow[k].tableEntry[j].targetPosition) {
           SS2K_LOG(POWERTABLE_LOG_TAG, "Target Slot (%d)(%d)(%d)(%d) was greater than next (%d)(%d)(%d)", this->tableRow[k].tableEntry[j].targetPosition, k, i, (int)targetPosition,
                    k, j, this->tableRow[k].tableEntry[j].targetPosition);
+          // downvote the blocking entry
+          this->tableRow[k].tableEntry[j].readings--;
+          // if it's downvoted to 0, reset the blocking entry
+          if (this->tableRow[k].tableEntry[j].readings < 1) {
+            this->tableRow[k].tableEntry[j].targetPosition = INT_MIN;
+          }
           return;
         }
         break;  // Found a valid right neighbor
@@ -442,7 +452,7 @@ int32_t PowerTable::lookup(int watts, int cad) {
 
 bool PowerTable::_manageSaveState() {
   // Check if the table has been loaded in this session
-  if (!_hasBeenLoadedThisSession) {
+  if (!this->_hasBeenLoadedThisSession) {
     SS2K_LOG(POWERTABLE_LOG_TAG, "Loading Power Table....");
     File file = LittleFS.open(POWER_TABLE_FILENAME, FILE_READ);
     if (!file) {
@@ -456,11 +466,13 @@ bool PowerTable::_manageSaveState() {
     int version;
     file.read((uint8_t*)&version, sizeof(version));
     if (version != TABLE_VERSION) {
-      SS2K_LOG(POWERTABLE_LOG_TAG, "Incompatible table version.");
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Expected power table version %d, found version %d", TABLE_VERSION, version);
       file.close();
       this->_save();
       return false;
     }
+
+    SS2K_LOG(POWERTABLE_LOG_TAG, "Loading power table version %d", version);
 
     int size;
     file.read((uint8_t*)&size, sizeof(size));
@@ -468,23 +480,63 @@ bool PowerTable::_manageSaveState() {
     // Initialize a counter for reliable positions
     int reliablePositions = 0;
     std::vector<int> offsetDifferences;
-
-    // Read table entries
+    int activeReliability = 0;
+    int savedReliability  = 0;
+    // Check if we have at least 3 reliable positions in the active table in order to determine a reliable offset to load the saved table
     for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
       for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
-        int savedTargetPosition;
-        int savedReadings;
+        int savedTargetPosition = INT_MIN;
+        int savedReadings       = 0;
         file.read((uint8_t*)&savedTargetPosition, sizeof(savedTargetPosition));
         file.read((uint8_t*)&savedReadings, sizeof(savedReadings));
+        if ((this->tableRow[i].tableEntry[j].targetPosition != INT_MIN) && (this->tableRow[i].tableEntry[j].readings > 3) && (savedReadings > 0)) {
+          reliablePositions++;
+        }
+        if (this->tableRow[i].tableEntry[j].targetPosition != INT_MIN) {
+          activeReliability += this->tableRow[i].tableEntry[j].readings;
+        }
+        if (savedTargetPosition != INT_MIN) {
+          savedReliability += savedReadings;
+        }
+      }
+    }
+    if (activeReliability > savedReliability) {  // Is the data we are working with better than the saved file?
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Active table had a reliability of %d, vs %d for the saved file. Overwriting save.", activeReliability, savedReliability);
+      file.close();
+      this->_save();
+    } else if (reliablePositions < MINIMUM_RELIABLE_POSITIONS) {  // Do we have enough active data in order to calculate an offset when we load the new table?
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Not enough reliable positions to load the Power Table.");
+      file.close();
+      return false;
+    } else {  // continue loading
+      // we will recalculate this again later as we find offsets
+      reliablePositions = 0;
+    }
+    file.close();
+    file = LittleFS.open(POWER_TABLE_FILENAME, FILE_READ);
+    if (!file) {
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Failed to Load Power Table.");
+      file.close();
+      this->_save();
+      return false;
+    }
 
-        // Check if we have at least 3 reliable positions in the active table
-        if (this->tableRow[i].tableEntry[j].targetPosition != INT_MIN && savedTargetPosition != INT_MIN) {
+    // get these reads done, so that we're in the right position to read the data from the file.
+    file.read((uint8_t*)&version, sizeof(version));
+    file.read((uint8_t*)&size, sizeof(size));
+
+    // Read table entries and calculate offsets
+    for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
+      for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
+        int savedTargetPosition = INT_MIN;
+        int savedReadings       = 0;
+        file.read((uint8_t*)&savedTargetPosition, sizeof(savedTargetPosition));
+        file.read((uint8_t*)&savedReadings, sizeof(savedReadings));
+        if ((this->tableRow[i].tableEntry[j].targetPosition != INT_MIN) && (savedTargetPosition != INT_MIN) && (savedReadings > 0)) {
           int offset = this->tableRow[i].tableEntry[j].targetPosition - savedTargetPosition;
           offsetDifferences.push_back(offset);
           reliablePositions++;
         }
-
-        // Load table entries
         this->tableRow[i].tableEntry[j].targetPosition = savedTargetPosition;
         this->tableRow[i].tableEntry[j].readings       = savedReadings;
       }
@@ -492,35 +544,29 @@ bool PowerTable::_manageSaveState() {
 
     file.close();
 
-    // Ensure we have at least 3 reliable positions before loading
-    if (reliablePositions >= 3) {
-      int totalOffset = 0;
-      for (int offset : offsetDifferences) {
-        totalOffset += offset;
-      }
-      int averageOffset = totalOffset / reliablePositions;
+    int totalOffset = 0;
+    for (int offset : offsetDifferences) {
+      totalOffset += offset;
+    }
+    int averageOffset = totalOffset / reliablePositions;
 
-      // Apply the offset to all loaded positions except for INT_MIN values
-      for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
-        for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
-          if (this->tableRow[i].tableEntry[j].targetPosition != INT_MIN) {
-            this->tableRow[i].tableEntry[j].targetPosition += averageOffset;
-          }
+    // Apply the offset to all loaded positions except for INT_MIN values
+    for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
+      for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
+        if (this->tableRow[i].tableEntry[j].targetPosition != INT_MIN) {
+          this->tableRow[i].tableEntry[j].targetPosition += averageOffset;
         }
       }
-
-      _hasBeenLoadedThisSession = true;
-      SS2K_LOG(POWERTABLE_LOG_TAG, "Power Table loaded with an offset of %d.", averageOffset);
-    } else {
-      SS2K_LOG(POWERTABLE_LOG_TAG, "Not enough reliable positions to load the Power Table.");
-      this->_save();
-      return false;
     }
+    // set the flag so it isn't loaded again this session.
+    this->_hasBeenLoadedThisSession = true;
+    SS2K_LOG(POWERTABLE_LOG_TAG, "Power Table loaded with an offset of %d.", averageOffset);
   }
 
   // Implement saving on a timer
   if ((millis() - lastSaveTime) > POWER_TABLE_SAVE_INTERVAL) {
     this->_save();
+    lastSaveTime = millis();
   }
   return true;
 }
@@ -554,7 +600,8 @@ bool PowerTable::_save() {
 
   // Close the file
   file.close();
-  lastSaveTime = millis();
+  lastSaveTime                    = millis();
+  this->_hasBeenLoadedThisSession = true;
   return true;  // return successful
 }
 
@@ -574,13 +621,10 @@ void PowerTable::toLog() {
   }
 
   char buffer[maxLen + 2];  // Buffer for formatting
-
-  SS2K_LOG(POWERTABLE_LOG_TAG, "Power Table:");
-
   // Print header row
-  String headerRow = "CAD\\WAT";
+  String headerRow = "CAD\\W ";
   for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
-    snprintf(buffer, sizeof(buffer), "%*d w", maxLen, j * POWERTABLE_WATT_INCREMENT);
+    snprintf(buffer, sizeof(buffer), "%*d", maxLen, j * POWERTABLE_WATT_INCREMENT);
     headerRow += String(" | ") + buffer;
   }
   SS2K_LOG(POWERTABLE_LOG_TAG, "%s", headerRow.c_str());
@@ -599,8 +643,6 @@ void PowerTable::toLog() {
     }
     SS2K_LOG(POWERTABLE_LOG_TAG, "%s", logString.c_str());
   }
-
-  SS2K_LOG(POWERTABLE_LOG_TAG, "End of Power Table");
 }
 
 int PowerTable::getEntries() {
