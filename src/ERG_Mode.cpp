@@ -312,8 +312,8 @@ float quadraticFit(const std::vector<float>& x, const std::vector<float>& y, flo
 float cadLinearFit(float wattage, float cad1, float pos1, float cad2, float pos2, float targetCadence) { return pos1 + (pos2 - pos1) * (targetCadence - cad1) / (cad2 - cad1); }
 
 int32_t PowerTable::lookup(int watts, int cad) {
-  int cadIndex = (cad - MINIMUM_TABLE_CAD) / POWERTABLE_CAD_INCREMENT;
-  int i        = watts / POWERTABLE_WATT_INCREMENT;
+  int i        = round(watts / (float)POWERTABLE_WATT_INCREMENT);
+  int cadIndex = round((cad - (float)MINIMUM_TABLE_CAD) / (float)POWERTABLE_CAD_INCREMENT);
 
   if (cadIndex < 0)
     cadIndex = 0;
@@ -326,7 +326,8 @@ int32_t PowerTable::lookup(int watts, int cad) {
     i = POWERTABLE_WATT_SIZE - 1;
 
   // Check if the exact data point is available and within the POWERTABLE_WATT_INCREMENT range
-  if (std::abs((i * POWERTABLE_WATT_INCREMENT) - watts) <= POWERTABLE_WATT_INCREMENT && this->tableRow[cadIndex].tableEntry[i].targetPosition != INT_MIN) {
+  if (this->tableRow[cadIndex].tableEntry[i].targetPosition != INT_MIN) {
+    SS2K_LOG(POWERTABLE_LOG_TAG, "PTab Direct Result (%d)(%d)", cadIndex, i)
     return this->tableRow[cadIndex].tableEntry[i].targetPosition * 100;
   }
 
