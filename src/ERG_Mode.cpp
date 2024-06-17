@@ -15,7 +15,7 @@
 #include <limits>
 
 TaskHandle_t ErgTask;
-PowerTable powerTable;
+PowerTable *powerTable;
 
 // Create a torque table representing 0w-1000w in 50w increments.
 // i.e. powerTable[1] corresponds to the incline required for 50w. powerTable[2] is the incline required for 100w and so on.
@@ -34,7 +34,7 @@ void setupERG() {
 }
 
 void ergTaskLoop(void* pvParameters) {
-  ErgMode ergMode = ErgMode(&powerTable);
+  ErgMode ergMode;
   PowerBuffer powerBuffer;
 
   ergMode._writeLogHeader();
@@ -58,7 +58,7 @@ void ergTaskLoop(void* pvParameters) {
     }
 
     // add values to torque table
-    powerTable.processPowerValue(powerBuffer, rtConfig->cad.getValue(), rtConfig->watts);
+    powerTable->processPowerValue(powerBuffer, rtConfig->cad.getValue(), rtConfig->watts);
 
     // compute ERG
     if ((rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetPower) && (hasConnectedPowerMeter || simulationRunning)) {
@@ -73,7 +73,11 @@ void ergTaskLoop(void* pvParameters) {
     // Set Min and Max Stepper positions
     if (loopCounter > 50) {
       loopCounter = 0;
-      powerTable.setStepperMinMax();
+      powerTable->setStepperMinMax();
+    }
+
+    if(ss2k->resetPowerTableFlag){
+      powerTable->reset();
     }
 
     loopCounter++;
@@ -604,6 +608,26 @@ bool PowerTable::_save() {
   lastSaveTime                    = millis();
   this->_hasBeenLoadedThisSession = true;
   return true;  // return successful
+}
+
+// Reset the PowerTable to 0;
+bool PowerTable::reset() {
+  ss2k->resetPowerTableFlag = false;
+  for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
+    for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
+      this->tableRow[i].tableEntry[j].targetPosition = INT_MIN;
+      this->tableRow[i].tableEntry[j].readings       = 0;
+    }
+  }
+  File file = LittleFS.open(POWER_TABLE_FILENAME, FILE_READ);
+  if (!file) {
+    SS2K_LOG(POWERTABLE_LOG_TAG, "Failed to Load Power Table.");
+    file.close();
+    this->_save();
+    return false;
+  }
+  this->_save();
+  return true;
 }
 
 void PowerTable::toLog() {

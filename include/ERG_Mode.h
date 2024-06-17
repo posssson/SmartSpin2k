@@ -82,6 +82,9 @@ class PowerTable {
   // save powertable from littlefs
   bool _save();
 
+  //Reset the active power table and delete the saved power table. 
+  bool reset();
+
   // return number of entries in the table.
   int getEntries();
 
@@ -95,7 +98,6 @@ class PowerTable {
 
 class ErgMode {
  public:
-  ErgMode(PowerTable* powerTable) { this->powerTable = powerTable; }
   void computeErg();
   void computeResistance();
   void _writeLogHeader();
@@ -110,7 +112,6 @@ class ErgMode {
   int cadence          = 0;
 
   Measurement watts;
-  PowerTable* powerTable;
 
   // check if user is spinning, reset incline if user stops spinning
   bool _userIsSpinning(int cadence, float incline);
@@ -124,3 +125,5 @@ class ErgMode {
   // update localvalues + incline, creates a log
   void _updateValues(int newCadence, Measurement& newWatts, float newIncline);
 };
+
+ extern PowerTable* powerTable;

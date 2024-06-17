@@ -37,6 +37,7 @@ True values are >00. False are 00.
 */
 
 #include <BLE_Common.h>
+#include <ERG_Mode.h>
 #include <Custom_Characteristic.h>
 #include <Constants.h>
 
@@ -45,9 +46,7 @@ void ss2kCustomCharacteristicCallbacks::onWrite(BLECharacteristic *pCharacterist
   ss2kCustomCharacteristic::process(rxValue);
 }
 
-void ss2kCustomCharacteristicCallbacks::onSubscribe(NimBLECharacteristic* pCharacteristic, ble_gap_conn_desc* desc, uint16_t subValue){
-    NimBLEDevice::setMTU(515);
-}
+void ss2kCustomCharacteristicCallbacks::onSubscribe(NimBLECharacteristic *pCharacteristic, ble_gap_conn_desc *desc, uint16_t subValue) { NimBLEDevice::setMTU(515); }
 
 void ss2kCustomCharacteristic::notify(char _item) {
   std::string returnValue = {cc_read, _item};
@@ -480,7 +479,7 @@ void ss2kCustomCharacteristic::process(std::string rxValue) {
       logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "<-reset to defaults");
       if (rxValue[0] == cc_write) {
         ss2k->resetDefaultsFlag = true;
-        returnValue[0] = cc_success;
+        returnValue[0]          = cc_success;
       }
 
       break;
@@ -580,6 +579,44 @@ void ss2kCustomCharacteristic::process(std::string rxValue) {
       if (rxValue[0] == cc_read) {
         returnValue[0] = cc_success;
         returnString   = FIRMWARE_VERSION;
+      }
+      break;
+    case BLE_resetPowerTable:  // 0x26
+      logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "<-Reset PTab");
+      if (rxValue[0] == cc_write) {
+        returnValue[0]            = cc_success;
+        ss2k->resetPowerTableFlag = true;
+      }
+      break;
+    case BLE_powerTableData:  // 0x27
+      logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "<-Power Tab Data");
+      if (rxValue[0] == cc_read && rxValue[1] < POWERTABLE_CAD_SIZE) {
+        delete returnValue;
+        uint8_t returnValue[POWERTABLE_WATT_SIZE * 2 + 3];
+        returnValue[0] = cc_success;
+        returnValue[1] = rxValue[1];
+        int row        = 6;  // 90rpm
+        if (rxValue[2]) {
+          returnValue[2] = rxValue[2];
+          row            = (int)rxValue[2];
+        }
+        returnLength = 3;
+        for (int i = 0; i < POWERTABLE_WATT_SIZE; i += 2) {
+          returnValue[i + 3] = (uint8_t)(powerTable->tableRow[row].tableEntry[i].targetPosition & 0xff);
+          returnValue[i + 4] = (uint8_t)(powerTable->tableRow[row].tableEntry[i].targetPosition >> 8);
+          returnLength++;
+          returnLength++;
+        }
+      }
+      if (rxValue[0] == cc_write) {
+        returnValue[0] = cc_success;
+        if (rxValue[3]) {
+          for (int i = 0; i < POWERTABLE_WATT_SIZE; i += 2) {
+            powerTable->tableRow[rxValue[3]].tableEntry[i].targetPosition = (int16_t((uint8_t)(rxValue[i + 3]) << 0 | (uint8_t)(rxValue[i + 4]) << 8));
+          }
+        } else {
+          SS2K_LOG(CUSTOM_CHAR_LOG_TAG, "No table row specified");
+        }
       }
       break;
   }

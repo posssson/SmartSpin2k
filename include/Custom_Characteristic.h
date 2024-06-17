@@ -51,3 +51,5 @@ const uint8_t BLE_maxBrakeWatts         = 0x22;  // "" Maximum watts for the oth
 const uint8_t BLE_restartBLE            = 0x23;  // Closes all connections to the BLE client - used to connect new BLE devices the user selects.
 const uint8_t BLE_scanBLE               = 0x24;  // Scan for new BLE devices
 const uint8_t BLE_firmwareVer           = 0x25;  // String of the current firmware version
+const uint8_t BLE_resetPowerTable       = 0x26;  // Delete all power table information.
+const uint8_t BLE_powerTableData        = 0x27;  // sets or requests power table data.
