@@ -46,10 +46,10 @@ class PowerBuffer {
 // Simplifying the table to save memory since we no longer need watts and cad.
 class TableEntry {
  public:
-  int targetPosition;
+  int16_t targetPosition;
   int readings;
   TableEntry() {
-    this->targetPosition = INT_MIN;
+    this->targetPosition = INT16_MIN;
     this->readings       = 0;
   }
 };

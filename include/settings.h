@@ -288,7 +288,7 @@ const char * const DEFAULT_PASSWORD = "password";
 #define MINIMUM_RELIABLE_POSITIONS 3
 
 // Temperature of the ESP32 at which to start reducing the power output of the stepper motor driver.
-#define THROTTLE_TEMP 85
+#define THROTTLE_TEMP 90
 
 // Size of the Aux Serial Buffer for Peloton
 #define AUX_BUF_SIZE 10

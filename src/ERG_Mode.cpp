@@ -15,7 +15,7 @@
 #include <limits>
 
 TaskHandle_t ErgTask;
-PowerTable *powerTable;
+PowerTable *powerTable = new PowerTable;
 
 // Create a torque table representing 0w-1000w in 50w increments.
 // i.e. powerTable[1] corresponds to the incline required for 50w. powerTable[2] is the incline required for 100w and so on.
@@ -239,7 +239,7 @@ void PowerTable::newEntry(PowerBuffer& powerBuffer) {
   // Prohibit entries that are less than the number to the left
   if (i > 0) {
     for (int j = i - 1; j >= 0; j--) {
-      if (this->tableRow[k].tableEntry[j].targetPosition != INT_MIN) {
+      if (this->tableRow[k].tableEntry[j].targetPosition != INT16_MIN) {
         if (this->tableRow[k].tableEntry[j].targetPosition >= targetPosition) {
           SS2K_LOG(POWERTABLE_LOG_TAG, "Target Slot (%d)(%d)(%d)(%d) was less than previous (%d)(%d)(%d)", this->tableRow[k].tableEntry[j].targetPosition, k, i,
                    (int)targetPosition, k, j, this->tableRow[k].tableEntry[j].targetPosition);
@@ -247,7 +247,7 @@ void PowerTable::newEntry(PowerBuffer& powerBuffer) {
           this->tableRow[k].tableEntry[j].readings--;
           // reset the blocking entry
           if (this->tableRow[k].tableEntry[j].readings < 1) {
-            this->tableRow[k].tableEntry[j].targetPosition = INT_MIN;
+            this->tableRow[k].tableEntry[j].targetPosition = INT16_MIN;
           }
           return;
         }
@@ -259,7 +259,7 @@ void PowerTable::newEntry(PowerBuffer& powerBuffer) {
   // Prohibit entries that are greater than the number to the right
   if (i < POWERTABLE_WATT_SIZE - 1) {
     for (int j = i + 1; j < POWERTABLE_WATT_SIZE; j++) {
-      if (this->tableRow[k].tableEntry[j].targetPosition != INT_MIN) {
+      if (this->tableRow[k].tableEntry[j].targetPosition != INT16_MIN) {
         if (targetPosition >= this->tableRow[k].tableEntry[j].targetPosition) {
           SS2K_LOG(POWERTABLE_LOG_TAG, "Target Slot (%d)(%d)(%d)(%d) was greater than next (%d)(%d)(%d)", this->tableRow[k].tableEntry[j].targetPosition, k, i, (int)targetPosition,
                    k, j, this->tableRow[k].tableEntry[j].targetPosition);
@@ -267,7 +267,7 @@ void PowerTable::newEntry(PowerBuffer& powerBuffer) {
           this->tableRow[k].tableEntry[j].readings--;
           // if it's downvoted to 0, reset the blocking entry
           if (this->tableRow[k].tableEntry[j].readings < 1) {
-            this->tableRow[k].tableEntry[j].targetPosition = INT_MIN;
+            this->tableRow[k].tableEntry[j].targetPosition = INT16_MIN;
           }
           return;
         }
@@ -290,6 +290,8 @@ void PowerTable::newEntry(PowerBuffer& powerBuffer) {
     }
   }
   this->tableRow[k].tableEntry[i].readings++;
+  //Notify connected client of new data
+  ss2kCustomCharacteristic::notify(0x27, k);
 }
 
 // Helper function to solve linear equation
@@ -330,7 +332,7 @@ int32_t PowerTable::lookup(int watts, int cad) {
     i = POWERTABLE_WATT_SIZE - 1;
 
   // Check if the exact data point is available and within the POWERTABLE_WATT_INCREMENT range
-  if (this->tableRow[cadIndex].tableEntry[i].targetPosition != INT_MIN) {
+  if (this->tableRow[cadIndex].tableEntry[i].targetPosition != INT16_MIN) {
     SS2K_LOG(POWERTABLE_LOG_TAG, "PTab Direct Result (%d)(%d)", cadIndex, i)
     return this->tableRow[cadIndex].tableEntry[i].targetPosition * 100;
   }
@@ -339,7 +341,7 @@ int32_t PowerTable::lookup(int watts, int cad) {
   std::vector<float> validPositions;
 
   for (int j = 0; j < POWERTABLE_WATT_SIZE; ++j) {
-    if (this->tableRow[cadIndex].tableEntry[j].targetPosition != INT_MIN) {
+    if (this->tableRow[cadIndex].tableEntry[j].targetPosition != INT16_MIN) {
       validWattages.push_back(j * POWERTABLE_WATT_INCREMENT);
       validPositions.push_back(this->tableRow[cadIndex].tableEntry[j].targetPosition);
     }
@@ -350,7 +352,7 @@ int32_t PowerTable::lookup(int watts, int cad) {
     for (int k = 0; k < POWERTABLE_CAD_SIZE; ++k) {
       if (k == cadIndex) continue;
       for (int j = 0; j < POWERTABLE_WATT_SIZE; ++j) {
-        if (this->tableRow[k].tableEntry[j].targetPosition != INT_MIN) {
+        if (this->tableRow[k].tableEntry[j].targetPosition != INT16_MIN) {
           validWattages.push_back(j * POWERTABLE_WATT_INCREMENT);
           validPositions.push_back(this->tableRow[k].tableEntry[j].targetPosition);
         }
@@ -363,13 +365,13 @@ int32_t PowerTable::lookup(int watts, int cad) {
     // Check if we have enough data in the target cadence line
     std::vector<float> cadPositions;
     for (int j = 0; j < POWERTABLE_WATT_SIZE; ++j) {
-      if (this->tableRow[cadIndex].tableEntry[j].targetPosition == INT_MIN) {
-        float extrapolatedValue = INT_MIN;
+      if (this->tableRow[cadIndex].tableEntry[j].targetPosition == INT16_MIN) {
+        float extrapolatedValue = INT16_MIN;
         std::vector<std::pair<int, float>> surroundingPositions;
 
         for (int k = 0; k < POWERTABLE_CAD_SIZE; ++k) {
           if (k == cadIndex) continue;
-          if (this->tableRow[k].tableEntry[j].targetPosition != INT_MIN) {
+          if (this->tableRow[k].tableEntry[j].targetPosition != INT16_MIN) {
             surroundingPositions.push_back(std::make_pair(k, this->tableRow[k].tableEntry[j].targetPosition));
           }
         }
@@ -398,7 +400,7 @@ int32_t PowerTable::lookup(int watts, int cad) {
     validPositions.clear();
 
     for (int j = 0; j < POWERTABLE_WATT_SIZE; ++j) {
-      if (cadPositions[j] != INT_MIN) {
+      if (cadPositions[j] != INT16_MIN) {
         validWattages.push_back(j * POWERTABLE_WATT_INCREMENT);
         validPositions.push_back(cadPositions[j]);
       }
@@ -490,17 +492,17 @@ bool PowerTable::_manageSaveState() {
     // Check if we have at least 3 reliable positions in the active table in order to determine a reliable offset to load the saved table
     for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
       for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
-        int savedTargetPosition = INT_MIN;
+        int savedTargetPosition = INT16_MIN;
         int savedReadings       = 0;
         file.read((uint8_t*)&savedTargetPosition, sizeof(savedTargetPosition));
         file.read((uint8_t*)&savedReadings, sizeof(savedReadings));
-        if ((this->tableRow[i].tableEntry[j].targetPosition != INT_MIN) && (this->tableRow[i].tableEntry[j].readings > 3) && (savedReadings > 0)) {
+        if ((this->tableRow[i].tableEntry[j].targetPosition != INT16_MIN) && (this->tableRow[i].tableEntry[j].readings > 3) && (savedReadings > 0)) {
           reliablePositions++;
         }
-        if (this->tableRow[i].tableEntry[j].targetPosition != INT_MIN) {
+        if (this->tableRow[i].tableEntry[j].targetPosition != INT16_MIN) {
           activeReliability += this->tableRow[i].tableEntry[j].readings;
         }
-        if (savedTargetPosition != INT_MIN) {
+        if (savedTargetPosition != INT16_MIN) {
           savedReliability += savedReadings;
         }
       }
@@ -533,11 +535,11 @@ bool PowerTable::_manageSaveState() {
     // Read table entries and calculate offsets
     for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
       for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
-        int savedTargetPosition = INT_MIN;
+        int savedTargetPosition = INT16_MIN;
         int savedReadings       = 0;
         file.read((uint8_t*)&savedTargetPosition, sizeof(savedTargetPosition));
         file.read((uint8_t*)&savedReadings, sizeof(savedReadings));
-        if ((this->tableRow[i].tableEntry[j].targetPosition != INT_MIN) && (savedTargetPosition != INT_MIN) && (savedReadings > 0)) {
+        if ((this->tableRow[i].tableEntry[j].targetPosition != INT16_MIN) && (savedTargetPosition != INT16_MIN) && (savedReadings > 0)) {
           int offset = this->tableRow[i].tableEntry[j].targetPosition - savedTargetPosition;
           offsetDifferences.push_back(offset);
           reliablePositions++;
@@ -555,10 +557,10 @@ bool PowerTable::_manageSaveState() {
     }
     int averageOffset = totalOffset / reliablePositions;
 
-    // Apply the offset to all loaded positions except for INT_MIN values
+    // Apply the offset to all loaded positions except for INT16_MIN values
     for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
       for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
-        if (this->tableRow[i].tableEntry[j].targetPosition != INT_MIN) {
+        if (this->tableRow[i].tableEntry[j].targetPosition != INT16_MIN) {
           this->tableRow[i].tableEntry[j].targetPosition += averageOffset;
         }
       }
@@ -615,7 +617,7 @@ bool PowerTable::reset() {
   ss2k->resetPowerTableFlag = false;
   for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
     for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
-      this->tableRow[i].tableEntry[j].targetPosition = INT_MIN;
+      this->tableRow[i].tableEntry[j].targetPosition = INT16_MIN;
       this->tableRow[i].tableEntry[j].readings       = 0;
     }
   }
@@ -626,7 +628,8 @@ bool PowerTable::reset() {
     this->_save();
     return false;
   }
-  this->_save();
+  file.close();
+  this->_save(); 
   return true;
 }
 
@@ -635,7 +638,7 @@ void PowerTable::toLog() {
   // Find the longest integer to dynamically size the table
   for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
     for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
-      if (this->tableRow[i].tableEntry[j].targetPosition == INT_MIN) {
+      if (this->tableRow[i].tableEntry[j].targetPosition == INT16_MIN) {
         continue;
       }
       int len = snprintf(nullptr, 0, "%d", this->tableRow[i].tableEntry[j].targetPosition);
@@ -659,7 +662,7 @@ void PowerTable::toLog() {
     String logString = String(i * POWERTABLE_CAD_INCREMENT + MINIMUM_TABLE_CAD) + " rpm";
     for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
       int targetPosition = this->tableRow[i].tableEntry[j].targetPosition;
-      if (targetPosition == INT_MIN) {
+      if (targetPosition == INT16_MIN) {
         snprintf(buffer, sizeof(buffer), "%*s", maxLen, " ");
       } else {
         snprintf(buffer, sizeof(buffer), "%*d", maxLen, targetPosition);
