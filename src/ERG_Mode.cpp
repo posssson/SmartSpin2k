@@ -123,7 +123,7 @@ void PowerTable::processPowerValue(PowerBuffer& powerBuffer, int cadence, Measur
       // Take Initial reading
       powerBuffer.set(0);
       // Check that reading is within 1/2 of the initial reading
-    } else if (abs(powerBuffer.powerEntry[0].watts - watts.getValue()) < (POWERTABLE_WATT_INCREMENT / 2)) {
+    } else if ((abs(powerBuffer.powerEntry[0].watts - watts.getValue()) < (POWERTABLE_WATT_INCREMENT / 2)) && (abs(powerBuffer.powerEntry[0].cad - cadence) < (POWERTABLE_CAD_INCREMENT))) {
       for (int i = 1; i < POWER_SAMPLES; i++) {
         if (powerBuffer.powerEntry[i].readings == 0) {
           powerBuffer.set(i);  // Add additional readings to the buffer.
