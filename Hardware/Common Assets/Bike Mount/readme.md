@@ -8,4 +8,3 @@ Recommended Yoke Width for various bikes if using the OpenSCAD or Thingiverse Cu
 Manufacturer|Model|Year|Arm Length (range)
 ----------: |:---:|:---:|:------:
 Yosuda|[Bike Plus](https://www.amazon.com/gp/product/B07D528W98)|Any|30mm
-Body Bike|Body Bike|Any|50 (Steep angle)
