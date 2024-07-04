@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated all references of SmartSkin2K to SmartSpin2k for consistency.
 - Fixed bug where BT scanner "Loading" wouldn't disappear if "NONE" and "NONE" were selected.
 - Fixed Bug where ERG setpoint state wasn't going to the positive control loop correctly.  
+- updated arm length readme for JLL IC400
+- Added yokeWidth table to bike mount readme for bikes that use the OpenSCAD yoke.
+- improved OpenSCAD for yoke to add roundness to the curve.
 
 ### Hardware
 - added Yesoul S3.

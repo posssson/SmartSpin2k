@@ -12,6 +12,7 @@ Bowflex|IC Bike SE|Any|100
 Bowflex|Velocore|150
 Echelon|Connect Sport|Any| 105
 HMC|HMC|Any|60mm
+JLL|IC400|Any|35-45
 Joroto|X2|Any|20
 LeMond|RevMaster|Any|75
 Peloton|Bike|Any|75 (90 for slammed bars)
