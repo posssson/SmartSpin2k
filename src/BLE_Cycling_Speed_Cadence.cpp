@@ -9,22 +9,18 @@
 #include <Constants.h>
 
 BLE_Cycling_Speed_Cadence::BLE_Cycling_Speed_Cadence() : pCyclingSpeedCadenceService(nullptr), cscMeasurement(nullptr), cscFeature(nullptr) {}
-static MyCallbacks chrCallbacks;
 
-void BLE_Cycling_Speed_Cadence::setupService(NimBLEServer *pServer) {
-    pCyclingSpeedCadenceService = pServer->createService(CSCSERVICE_UUID);
-    cscMeasurement = pCyclingSpeedCadenceService->createCharacteristic(CSCMEASUREMENT_UUID, NIMBLE_PROPERTY::NOTIFY);
-    cscFeature = pCyclingSpeedCadenceService->createCharacteristic(CSCFEATURE_UUID, NIMBLE_PROPERTY::READ);
-
-    cscMeasurement->setCallbacks(&chrCallbacks);
-    pCyclingSpeedCadenceService->start();
+void BLE_Cycling_Speed_Cadence::setupService(NimBLEServer *pServer, MyCallbacks *chrCallbacks) {
+  pCyclingSpeedCadenceService = pServer->createService(CSCSERVICE_UUID);
+  cscMeasurement              = pCyclingSpeedCadenceService->createCharacteristic(CSCMEASUREMENT_UUID, NIMBLE_PROPERTY::NOTIFY);
+  cscFeature                  = pCyclingSpeedCadenceService->createCharacteristic(CSCFEATURE_UUID, NIMBLE_PROPERTY::READ);
+  byte cscFeatureFlags[1]     = {0b11};
+  cscFeature->setValue(cscFeatureFlags, sizeof(cscFeatureFlags));
+  cscMeasurement->setCallbacks(chrCallbacks);
+  pCyclingSpeedCadenceService->start();
 }
 
 void BLE_Cycling_Speed_Cadence::update() {
-    updateCyclingSpeedCadenceChar();
-}
-
-void BLE_Cycling_Speed_Cadence::updateCyclingSpeedCadenceChar() {
   if (!spinBLEServer.clientSubscribed.CyclingSpeedCadence) {
     return;
   }

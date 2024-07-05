@@ -10,15 +10,15 @@
 #include <NimBLEDevice.h>
 #include "BLE_Common.h"
 
-class BLE_Cycling_Speed_Cadence {
+class BLE_Cycling_Power_Service {
  public:
-  BLE_Cycling_Speed_Cadence();
+  BLE_Cycling_Power_Service();
   void setupService(NimBLEServer *pServer, MyCallbacks *chrCallbacks);
   void update();
 
  private:
-  BLEService *pCyclingSpeedCadenceService;
-  BLECharacteristic *cscMeasurement;
-  BLECharacteristic *cscFeature;
-  BLECharacteristic *cscControlPoint;
+  BLEService *pPowerMonitor;
+  BLECharacteristic *cyclingPowerMeasurementCharacteristic;
+  BLECharacteristic *cyclingPowerFeatureCharacteristic;
+  BLECharacteristic *sensorLocationCharacteristic;
 };

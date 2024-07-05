@@ -91,11 +91,8 @@ void logCharacteristic(char *buffer, const size_t bufferCapacity, const byte *da
                        const char *format, ...);
 void updateWheelAndCrankRev();
 void updateIndoorBikeDataChar();
-void updateCyclingPowerMeasurementChar();
 void updateServerChars();
-//void updateCyclingSpeedCadenceChar();
 void calculateInstPwrFromHR();
-void updateHeartRateMeasurementChar();
 int connectedClientCount();
 void controlPointIndicate();
 void processFTMSWrite();
