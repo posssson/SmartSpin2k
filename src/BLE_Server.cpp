@@ -8,6 +8,7 @@
 #include "Main.h"
 #include "SS2KLog.h"
 #include "BLE_Common.h"
+#include "BLE_Cycling_Speed_Cadence.h"
 
 #include <ArduinoJson.h>
 #include <Constants.h>
@@ -29,9 +30,7 @@ BLECharacteristic *cyclingPowerMeasurementCharacteristic;
 BLECharacteristic *cyclingPowerFeatureCharacteristic;
 BLECharacteristic *sensorLocationCharacteristic;
 
-BLEService *pCyclingSpeedCadenceService;
-BLECharacteristic *cscMeasurement;
-BLECharacteristic *cscFeature;
+BLE_Cycling_Speed_Cadence cyclingSpeedCadenceService;
 
 BLEService *pFitnessMachineService;
 BLECharacteristic *fitnessMachineFeature;
@@ -64,6 +63,7 @@ std::string FTMSWrite = "";
 // 98765432109876543210 - bit placement helper :)
 
 byte heartRateMeasurement[2] = {0x00, 0x00};
+// Set initial values for CSC Feature characteristic
 byte cpsLocation[1]          = {0b0101};    // sensor location 5 == left crank
 byte cpFeature[1]            = {0b001100};  // crank information & wheel revolution data present
 
@@ -120,11 +120,6 @@ void startBLEServer() {
   cyclingPowerFeatureCharacteristic     = pPowerMonitor->createCharacteristic(CYCLINGPOWERFEATURE_UUID, NIMBLE_PROPERTY::READ);
   sensorLocationCharacteristic          = pPowerMonitor->createCharacteristic(SENSORLOCATION_UUID, NIMBLE_PROPERTY::READ);
 
-  // Cycling Speed and Cadence service setup
-  pCyclingSpeedCadenceService = spinBLEServer.pServer->createService(CSCSERVICE_UUID);
-  cscMeasurement              = pCyclingSpeedCadenceService->createCharacteristic(CSCMEASUREMENT_UUID, NIMBLE_PROPERTY::NOTIFY);
-  cscFeature                  = pCyclingSpeedCadenceService->createCharacteristic(CSCFEATURE_UUID, NIMBLE_PROPERTY::READ);
-
   // Fitness Machine service setup
   pFitnessMachineService             = spinBLEServer.pServer->createService(FITNESSMACHINESERVICE_UUID);
   fitnessMachineFeature              = pFitnessMachineService->createCharacteristic(FITNESSMACHINEFEATURE_UUID, NIMBLE_PROPERTY::READ);
@@ -147,8 +142,8 @@ void startBLEServer() {
   byte cyclingPowerMeasurement[8] = {0b1000000, 0, 0, 0, 0, 0, 0};  // Crank Revolution data present
   cyclingPowerMeasurementCharacteristic->setValue(cyclingPowerMeasurement, sizeof(cyclingPowerMeasurement));
   cyclingPowerFeatureCharacteristic->setValue(cpFeature, sizeof(cpFeature));
-  byte cscFeatureFlags[1] = {0b11};
-  cscFeature->setValue(cscFeatureFlags, sizeof(cscFeatureFlags));
+  //byte cscFeatureFlags[1] = {0b11};
+  //cscFeature->setValue(cscFeatureFlags, sizeof(cscFeatureFlags));
   sensorLocationCharacteristic->setValue(cpsLocation, sizeof(cpsLocation));
   fitnessMachineFeature->setValue(ftmsFeature.bytes, sizeof(ftmsFeature));
   ftmsIndoorBikeData[0] = static_cast<uint8_t>(ftmsIBDFlags & 0xFF);         // LSB, mask with 0xFF to get the lower 8 bits
@@ -159,14 +154,15 @@ void startBLEServer() {
   fitnessMachineInclinationRange->setValue(ftmsInclinationRange, sizeof(ftmsInclinationRange));
   smartSpin2kCharacteristic->setValue(ss2kCustomCharacteristicValue, sizeof(ss2kCustomCharacteristicValue));
 
-  cscMeasurement->setCallbacks(&chrCallbacks);
+  //cscMeasurement->setCallbacks(&chrCallbacks);
   cyclingPowerMeasurementCharacteristic->setCallbacks(&chrCallbacks);
   heartRateMeasurementCharacteristic->setCallbacks(&chrCallbacks);
   fitnessMachineIndoorBikeData->setCallbacks(&chrCallbacks);
   fitnessMachineControlPoint->setCallbacks(&chrCallbacks);
   smartSpin2kCharacteristic->setCallbacks(new ss2kCustomCharacteristicCallbacks());
 
-  pCyclingSpeedCadenceService->start();
+  cyclingSpeedCadenceService.setupService(spinBLEServer.pServer);
+  //pCyclingSpeedCadenceService->start();
   pHeartService->start();
   pPowerMonitor->start();
   pFitnessMachineService->start();
@@ -174,7 +170,7 @@ void startBLEServer() {
 
   // const std::string fitnessData = {0b00000001, 0b00100000, 0b00000000};
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-  // pAdvertising->setServiceData(FITNESSMACHINESERVICE_UUID, fitnessData);
+  //pAdvertising->setServiceData(FITNESSMACHINESERVICE_UUID, fitnessData);
 
   pAdvertising->addServiceUUID(FITNESSMACHINESERVICE_UUID);
   pAdvertising->addServiceUUID(CYCLINGPOWERSERVICE_UUID);
@@ -225,22 +221,21 @@ bool spinDown() {
   return true;
 }
 
-// Returns Current Speed in km/h
-double xxxcurrentSpeed() {
-  // Constants for the formula: C = 0.5 * AirDensity * DragCoefficient * FrontalArea + RollingResistance
-  const double combinedConstant = 0.5 * 1.225 * 0.63 * 0.5 + 0.004;
-  // Calculate the speed in m/s using the cubic root formula: (P / C)^(1/3)
-  double speedInMetersPerSecond = std::cbrt(rtConfig->watts.getValue() / combinedConstant);
-  // Convert speed from m/s to km/h
-  return speedInMetersPerSecond * 3.6;
-  // Scale the speed to fit the resolution of 0.01 km/h
-  // speedFtmsUnit = speedKmH * 100;
+void updateServerChars(){
+        // Setup the information
+      updateWheelAndCrankRev();
+      // update the BLE information on the server
+      updateIndoorBikeDataChar();
+      updateCyclingPowerMeasurementChar();
+      updateHeartRateMeasurementChar();
+      cyclingSpeedCadenceService.update();
+      // controlPointIndicate();
 }
 
 double calculateSpeed() {
   // Constants for the formula: adjusted for calibration
-  const double dragCoefficient   = 0.95;
-  const double frontalArea       = 0.5;    // m^2
+  const double dragCoefficient   = 1.95;
+  const double frontalArea       = 0.9;    // m^2
   const double airDensity        = 1.225;  // kg/m^3
   const double rollingResistance = 0.004;
   const double combinedConstant  = 0.5 * airDensity * dragCoefficient * frontalArea + rollingResistance;
@@ -325,71 +320,40 @@ void updateIndoorBikeDataChar() {
 }
 
 void updateCyclingPowerMeasurementChar() {
-  if (!spinBLEServer.clientSubscribed.CyclingPowerMeasurement) {
-    return;
-  }
-  int power = rtConfig->watts.getValue();
+   if (!spinBLEServer.clientSubscribed.CyclingPowerMeasurement) {
+        return;
+    }
+    int power = rtConfig->watts.getValue();
+    float cadence = rtConfig->cad.getValue();
 
-  float cadence = rtConfig->cad.getValue();
+    CyclingPowerMeasurement cpm;
 
-  CyclingPowerMeasurement cpm;
+    // Clear all flags initially
+    memset(&cpm.flags, 0, sizeof(cpm.flags));
 
-  // Example setting of flags and values
-  cpm.flags                            = {0};  // Clear all flags initially
-  cpm.flags.crankRevolutionDataPresent = 1;    // Crank Revolution Data Present
-  cpm.flags.wheelRevolutionDataPresent = 1;
-  cpm.instantaneousPower               = rtConfig->watts.getValue();
-  cpm.cumulativeCrankRevolutions       = spinBLEClient.cscCumulativeCrankRev;
-  cpm.lastCrankEventTime               = spinBLEClient.cscLastCrankEvtTime;
-  cpm.cumulativeWheelRevolutions       = spinBLEClient.cscCumulativeWheelRev;
-  cpm.lastWheelEventTime               = spinBLEClient.cscLastWheelEvtTime;
+    // Set flags based on available data
+    cpm.flags.crankRevolutionDataPresent = 1;    // Crank Revolution Data Present
+    cpm.flags.wheelRevolutionDataPresent = 1;    // Wheel Revolution Data Present
 
-  auto byteArray = cpm.toByteArray();
+    // Set data fields
+    cpm.instantaneousPower               = power;
+    cpm.cumulativeCrankRevolutions       = spinBLEClient.cscCumulativeCrankRev;
+    cpm.lastCrankEventTime               = spinBLEClient.cscLastCrankEvtTime;
+    cpm.cumulativeWheelRevolutions       = spinBLEClient.cscCumulativeWheelRev;
+    cpm.lastWheelEventTime               = spinBLEClient.cscLastWheelEvtTime;
 
-  cyclingPowerMeasurementCharacteristic->setValue(&byteArray[0], byteArray.size());
-  cyclingPowerMeasurementCharacteristic->notify();
+    auto byteArray = cpm.toByteArray();
 
-  const int kLogBufCapacity =
-      150;  // Data(18), Sep(data/2), Arrow(3), CharId(37), Sep(3), CharId(37), Sep(3),Name(8), Prefix(2), CD(10), SEP(1), PW(8), Suffix(2), Nul(1), rounded up
-  char logBuf[kLogBufCapacity];
-  const size_t byteArrayLength = byteArray.size();
+    cyclingPowerMeasurementCharacteristic->setValue(&byteArray[0], byteArray.size());
+    cyclingPowerMeasurementCharacteristic->notify();
 
-  logCharacteristic(logBuf, kLogBufCapacity, &byteArray[0], byteArrayLength, CYCLINGPOWERSERVICE_UUID, cyclingPowerMeasurementCharacteristic->getUUID(),
-                    "CPS(CPM)[ CD(%.2f) PW(%d) ]", cadence > 0 ? fmodf(cadence, 1000.0) : 0, power % 10000);
-}
+    const int kLogBufCapacity = 150;
+    char logBuf[kLogBufCapacity];
+    const size_t byteArrayLength = byteArray.size();
 
-void updateCyclingSpeedCadenceChar() {
-  if (!spinBLEServer.clientSubscribed.CyclingSpeedCadence) {
-    return;
-  }
+    logCharacteristic(logBuf, kLogBufCapacity, &byteArray[0], byteArrayLength, CYCLINGPOWERSERVICE_UUID, cyclingPowerMeasurementCharacteristic->getUUID(),
+                      "CPS(CPM)[ CD(%.2f) PW(%d) ]", cadence > 0 ? fmodf(cadence, 1000.0) : 0, power % 10000);
 
-  CscMeasurement csc;
-
-  // Clear all flags initially
-  *(reinterpret_cast<uint8_t *>(&(csc.flags))) = 0;
-
-  // Set flags based on data presence
-  csc.flags.wheelRevolutionDataPresent = 1;  // Wheel Revolution Data Present
-  csc.flags.crankRevolutionDataPresent = 1;  // Crank Revolution Data Present
-
-  // Set data fields
-  csc.cumulativeWheelRevolutions = spinBLEClient.cscCumulativeWheelRev;
-  csc.lastWheelEventTime         = spinBLEClient.cscLastWheelEvtTime;
-  csc.cumulativeCrankRevolutions = spinBLEClient.cscCumulativeCrankRev;
-  csc.lastCrankEventTime         = spinBLEClient.cscLastCrankEvtTime;
-
-  auto byteArray = csc.toByteArray();
-
-  cscMeasurement->setValue(&byteArray[0], byteArray.size());
-  cscMeasurement->notify();
-
-  const int kLogBufCapacity = 150;
-  char logBuf[kLogBufCapacity];
-  const size_t byteArrayLength = byteArray.size();
-
-  logCharacteristic(logBuf, kLogBufCapacity, &byteArray[0], byteArrayLength, CSCSERVICE_UUID, cscMeasurement->getUUID(),
-                    "CSC(CSM)[ WheelRev(%lu) WheelTime(%u) CrankRev(%u) CrankTime(%u) ]", spinBLEClient.cscCumulativeWheelRev, spinBLEClient.cscLastWheelEvtTime,
-                    spinBLEClient.cscCumulativeCrankRev, spinBLEClient.cscLastCrankEvtTime);
 }
 
 void updateHeartRateMeasurementChar() {

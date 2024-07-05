@@ -92,7 +92,8 @@ void logCharacteristic(char *buffer, const size_t bufferCapacity, const byte *da
 void updateWheelAndCrankRev();
 void updateIndoorBikeDataChar();
 void updateCyclingPowerMeasurementChar();
-void updateCyclingSpeedCadenceChar();
+void updateServerChars();
+//void updateCyclingSpeedCadenceChar();
 void calculateInstPwrFromHR();
 void updateHeartRateMeasurementChar();
 int connectedClientCount();
