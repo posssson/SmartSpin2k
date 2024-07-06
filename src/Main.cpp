@@ -110,10 +110,10 @@ void setup() {
   // Initialize LittleFS
   SS2K_LOG(MAIN_LOG_TAG, "Mounting Filesystem");
   if (!LittleFS.begin(false)) {
-    FSUpgrader upgrade;
+    // FSUpgrader upgrade;
     SS2K_LOG(MAIN_LOG_TAG, "An Error has occurred while mounting LittleFS.");
     // BEGIN FS UPGRADE SPECIFIC//
-    upgrade.upgradeFS();
+    // upgrade.upgradeFS();
     // END FS UPGRADE SPECIFIC//
   }
 

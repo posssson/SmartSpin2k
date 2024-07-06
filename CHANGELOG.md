@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed Bug where ERG setpoint state wasn't going to the positive control loop correctly.
 - Refactored BLE_Server into separate files for each BLE Service.
 - Fixed bug in CPS service for Wahoo app (and probably others).
+- Depreciated the SPIFFS->LittleFS upgrader.
 
 ### Hardware
 - added Yesoul S3.
