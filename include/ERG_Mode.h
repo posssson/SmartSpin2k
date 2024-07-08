@@ -82,11 +82,11 @@ class PowerTable {
   // save powertable from littlefs
   bool _save();
 
-  //Reset the active power table and delete the saved power table. 
+  // Reset the active power table and delete the saved power table.
   bool reset();
 
-  // return number of entries in the table.
-  int getEntries();
+  // return number of readings in the table.
+  int getNumReadings();
 
   // Display power table in log
   void toLog();
@@ -94,6 +94,11 @@ class PowerTable {
  private:
   unsigned long lastSaveTime     = millis();
   bool _hasBeenLoadedThisSession = false;
+  bool testNeighbors(int i, int j, int value);
+  void fillTable();
+  void extrapFillTable();
+  void extrapolateDiagonal();
+  int getNumEntries();
 };
 
 class ErgMode {
@@ -126,4 +131,4 @@ class ErgMode {
   void _updateValues(int newCadence, Measurement& newWatts, float newIncline);
 };
 
- extern PowerTable* powerTable;
+extern PowerTable* powerTable;
