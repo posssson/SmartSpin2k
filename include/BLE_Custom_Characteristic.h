@@ -7,6 +7,9 @@
 
 #pragma once
 
+#include <NimBLEDevice.h>
+#include "BLE_Common.h"
+
 // Codes
 const uint8_t cc_read    = 0x01;  // value to request read operation
 const uint8_t cc_write   = 0x02;  // Value to request write operation
@@ -51,5 +54,25 @@ const uint8_t BLE_maxBrakeWatts         = 0x22;  // "" Maximum watts for the oth
 const uint8_t BLE_restartBLE            = 0x23;  // Closes all connections to the BLE client - used to connect new BLE devices the user selects.
 const uint8_t BLE_scanBLE               = 0x24;  // Scan for new BLE devices
 const uint8_t BLE_firmwareVer           = 0x25;  // String of the current firmware version
-const uint8_t BLE_resetPowerTable       = 0x26;  // Delete all power table information.
-const uint8_t BLE_powerTableData        = 0x27;  // sets or requests power table data.
+
+class BLE_ss2kCustomCharacteristic {
+ public:
+  void setupService(NimBLEServer *pServer);
+  void update();
+  // Used internally for notify and onWrite Callback.
+  static void process(std::string rxValue);
+  // Custom Characteristic value that needs to be notified
+  static void notify(char _item);
+    // Notify any changed value in userConfig
+  static void parseNemit();
+
+ private:
+  BLEService *pSmartSpin2kService;
+  BLECharacteristic *smartSpin2kCharacteristic;
+  uint8_t ss2kCustomCharacteristicValue[3] = {0x00, 0x00, 0x00};
+};
+
+class ss2kCustomCharacteristicCallbacks : public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *);
+  void onSubscribe(NimBLECharacteristic *pCharacteristic, ble_gap_conn_desc *desc, uint16_t subValue);
+};

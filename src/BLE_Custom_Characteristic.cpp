@@ -6,6 +6,7 @@
  */
 
 /*
+
 Custom Characteristic for userConfig Variable manipulation via BLE
 
 An example follows to read/write 26.3kph to simulatedSpeed:
@@ -37,28 +38,37 @@ True values are >00. False are 00.
 */
 
 #include <BLE_Common.h>
-#include <ERG_Mode.h>
-#include <Custom_Characteristic.h>
+#include <BLE_Custom_Characteristic.h>
 #include <Constants.h>
+
+void BLE_ss2kCustomCharacteristic::setupService(NimBLEServer *pServer) {
+  pSmartSpin2kService = spinBLEServer.pServer->createService(SMARTSPIN2K_SERVICE_UUID);
+  smartSpin2kCharacteristic =
+      pSmartSpin2kService->createCharacteristic(SMARTSPIN2K_CHARACTERISTIC_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::INDICATE | NIMBLE_PROPERTY::NOTIFY);
+  smartSpin2kCharacteristic->setValue(ss2kCustomCharacteristicValue, sizeof(ss2kCustomCharacteristicValue));
+  smartSpin2kCharacteristic->setCallbacks(new ss2kCustomCharacteristicCallbacks());
+  pSmartSpin2kService->start();
+}
+
+void BLE_ss2kCustomCharacteristic::update() {}
 
 void ss2kCustomCharacteristicCallbacks::onWrite(BLECharacteristic *pCharacteristic) {
   std::string rxValue = pCharacteristic->getValue();
-  ss2kCustomCharacteristic::process(rxValue);
+  BLE_ss2kCustomCharacteristic::process(rxValue);
 }
 
 void ss2kCustomCharacteristicCallbacks::onSubscribe(NimBLECharacteristic *pCharacteristic, ble_gap_conn_desc *desc, uint16_t subValue) { NimBLEDevice::setMTU(515); }
 
-void ss2kCustomCharacteristic::notify(char _item, int tableRow) {
-  //regular non power table update
+void BLE_ss2kCustomCharacteristic::notify(char _item) {
   std::string returnValue = {cc_read, _item};
-  if(tableRow > -1){
-  returnValue += (uint8_t)tableRow;
-  }
   process(returnValue);
 }
 
-void ss2kCustomCharacteristic::process(std::string rxValue) {
-  // FInd the Characteristic
+void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
+  // Find the Characteristic
+  if(NimBLEDevice::getServer()->getServiceByUUID(SMARTSPIN2K_SERVICE_UUID) == nullptr){
+    return;
+  }
   NimBLECharacteristic *pCharacteristic = NimBLEDevice::getServer()->getServiceByUUID(SMARTSPIN2K_SERVICE_UUID)->getCharacteristic(SMARTSPIN2K_CHARACTERISTIC_UUID);
   uint8_t *pData                        = reinterpret_cast<uint8_t *>(&rxValue[0]);
   int length                            = rxValue.length();
@@ -585,38 +595,6 @@ void ss2kCustomCharacteristic::process(std::string rxValue) {
         returnString   = FIRMWARE_VERSION;
       }
       break;
-    case BLE_resetPowerTable:  // 0x26
-      logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "<-Reset PTab");
-      if (rxValue[0] == cc_write) {
-        returnValue[0]            = cc_success;
-        ss2k->resetPowerTableFlag = true;
-      }
-      break;
-    case BLE_powerTableData:  // 0x27
-      logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "<-Power Tab Data");
-      if (rxValue[0] == cc_read) {
-        int row = 6;  // 90rpm
-        if (rxValue[2] >= 0 || rxValue[2] < POWERTABLE_CAD_SIZE) {
-          row = rxValue[2];
-        }
-        returnString += (uint8_t)row;
-        for (int i = 0; i < POWERTABLE_WATT_SIZE; i ++) {
-          returnString  += (uint8_t)(powerTable->tableRow[row].tableEntry[i].targetPosition & 0xff);
-          returnString += (uint8_t)(powerTable->tableRow[row].tableEntry[i].targetPosition >> 8);
-          Serial.printf("%02x%02x ",(uint8_t)(powerTable->tableRow[row].tableEntry[i].targetPosition & 0xff) ,(uint8_t)(powerTable->tableRow[row].tableEntry[i].targetPosition >> 8));
-        }
-      }
-      if (rxValue[0] == cc_write) {
-        returnValue[0] = cc_success;
-        if (rxValue[3]) {
-          for (int i = 0; i < POWERTABLE_WATT_SIZE; i += 2) {
-            powerTable->tableRow[rxValue[3]].tableEntry[i].targetPosition = (int16_t((uint8_t)(rxValue[i + 3]) << 0 | (uint8_t)(rxValue[i + 4]) << 8));
-          }
-        } else {
-          SS2K_LOG(CUSTOM_CHAR_LOG_TAG, "No table row specified");
-        }
-      }
-      break;
   }
 
   SS2K_LOG(CUSTOM_CHAR_LOG_TAG, "%s", logBuf);
@@ -636,119 +614,119 @@ void ss2kCustomCharacteristic::process(std::string rxValue) {
 }
 
 // iterate through all smartspin user parameters and notify the specific one if changed
-void ss2kCustomCharacteristic::parseNemit() {
+void BLE_ss2kCustomCharacteristic::parseNemit() {
   static userParameters _oldParams;
 
   if (userConfig->getAutoUpdate() != _oldParams.getAutoUpdate()) {
     _oldParams.setAutoUpdate(userConfig->getAutoUpdate());
-    ss2kCustomCharacteristic::notify(BLE_autoUpdate);
+    BLE_ss2kCustomCharacteristic::notify(BLE_autoUpdate);
     return;  // only do one at a time because immediate update isn't super important for these values
   }
 
   if (strcmp(userConfig->getFirmwareUpdateURL(), _oldParams.getFirmwareUpdateURL()) != 0) {
     _oldParams.setFirmwareUpdateURL(userConfig->getFirmwareUpdateURL());
-    ss2kCustomCharacteristic::notify(BLE_firmwareUpdateURL);
+    BLE_ss2kCustomCharacteristic::notify(BLE_firmwareUpdateURL);
     return;
   }
 
   if (strcmp(userConfig->getDeviceName(), _oldParams.getDeviceName()) != 0) {
     _oldParams.setDeviceName(userConfig->getDeviceName());
-    ss2kCustomCharacteristic::notify(BLE_deviceName);
+    BLE_ss2kCustomCharacteristic::notify(BLE_deviceName);
     return;
   }
 
   if (userConfig->getShiftStep() != _oldParams.getShiftStep()) {
     _oldParams.setShiftStep(userConfig->getShiftStep());
-    ss2kCustomCharacteristic::notify(BLE_shiftStep);
+    BLE_ss2kCustomCharacteristic::notify(BLE_shiftStep);
     return;
   }
 
   if (userConfig->getStealthChop() != _oldParams.getStealthChop()) {
     _oldParams.setStealthChop(userConfig->getStealthChop());
-    ss2kCustomCharacteristic::notify(BLE_stealthChop);
+    BLE_ss2kCustomCharacteristic::notify(BLE_stealthChop);
     return;
   }
 
   if (userConfig->getInclineMultiplier() != _oldParams.getInclineMultiplier()) {
     _oldParams.setInclineMultiplier(userConfig->getInclineMultiplier());
-    ss2kCustomCharacteristic::notify(BLE_inclineMultiplier);
+    BLE_ss2kCustomCharacteristic::notify(BLE_inclineMultiplier);
     return;
   }
 
   if (userConfig->getPowerCorrectionFactor() != _oldParams.getPowerCorrectionFactor()) {
     _oldParams.setPowerCorrectionFactor(userConfig->getPowerCorrectionFactor());
-    ss2kCustomCharacteristic::notify(BLE_powerCorrectionFactor);
+    BLE_ss2kCustomCharacteristic::notify(BLE_powerCorrectionFactor);
     return;
   }
 
   if (strcmp(userConfig->getSsid(), _oldParams.getSsid()) != 0) {
     _oldParams.setSsid(userConfig->getSsid());
-    ss2kCustomCharacteristic::notify(BLE_ssid);
+    BLE_ss2kCustomCharacteristic::notify(BLE_ssid);
     return;
   }
 
   if (strcmp(userConfig->getPassword(), _oldParams.getPassword()) != 0) {
     _oldParams.setPassword(userConfig->getPassword());
-    ss2kCustomCharacteristic::notify(BLE_password);
+    BLE_ss2kCustomCharacteristic::notify(BLE_password);
     return;
   }
 
   if (strcmp(userConfig->getConnectedPowerMeter(), _oldParams.getConnectedPowerMeter()) != 0) {
     _oldParams.setConnectedPowerMeter(userConfig->getConnectedPowerMeter());
-    ss2kCustomCharacteristic::notify(BLE_connectedPowerMeter);
+    BLE_ss2kCustomCharacteristic::notify(BLE_connectedPowerMeter);
     return;
   }
 
   if (strcmp(userConfig->getConnectedHeartMonitor(), _oldParams.getConnectedHeartMonitor()) != 0) {
     _oldParams.setConnectedHeartMonitor(userConfig->getConnectedHeartMonitor());
-    ss2kCustomCharacteristic::notify(BLE_connectedHeartMonitor);
+    BLE_ss2kCustomCharacteristic::notify(BLE_connectedHeartMonitor);
     return;
   }
 
   if (userConfig->getStepperPower() != _oldParams.getStepperPower()) {
     _oldParams.setStepperPower(userConfig->getStepperPower());
-    ss2kCustomCharacteristic::notify(BLE_stepperPower);
+    BLE_ss2kCustomCharacteristic::notify(BLE_stepperPower);
     return;
   }
 
   if (userConfig->getStepperSpeed() != _oldParams.getStepperSpeed()) {
     _oldParams.setStepperSpeed(userConfig->getStepperSpeed());
-    ss2kCustomCharacteristic::notify(BLE_stepperSpeed);
+    BLE_ss2kCustomCharacteristic::notify(BLE_stepperSpeed);
     return;
   }
 
   if (userConfig->getERGSensitivity() != _oldParams.getERGSensitivity()) {
     _oldParams.setERGSensitivity(userConfig->getERGSensitivity());
-    ss2kCustomCharacteristic::notify(BLE_ERGSensitivity);
+    BLE_ss2kCustomCharacteristic::notify(BLE_ERGSensitivity);
     return;
   }
 
   if (userConfig->getStepperDir() != _oldParams.getStepperDir()) {
     _oldParams.setStepperDir(userConfig->getStepperDir());
-    ss2kCustomCharacteristic::notify(BLE_shiftDir);
+    BLE_ss2kCustomCharacteristic::notify(BLE_shiftDir);
     return;
   }
 
   if (strcmp(userConfig->getFoundDevices(), _oldParams.getFoundDevices()) != 0) {
     _oldParams.setFoundDevices(userConfig->getFoundDevices());
-    ss2kCustomCharacteristic::notify(BLE_foundDevices);
+    BLE_ss2kCustomCharacteristic::notify(BLE_foundDevices);
     return;
   }
 
   if (userConfig->getMinWatts() != _oldParams.getMinWatts()) {
     _oldParams.setMinWatts(userConfig->getMinWatts());
-    ss2kCustomCharacteristic::notify(BLE_minBrakeWatts);
+    BLE_ss2kCustomCharacteristic::notify(BLE_minBrakeWatts);
     return;
   }
 
   if (userConfig->getMaxWatts() != _oldParams.getMaxWatts()) {
     _oldParams.setMaxWatts(userConfig->getMaxWatts());
-    ss2kCustomCharacteristic::notify(BLE_maxBrakeWatts);
+    BLE_ss2kCustomCharacteristic::notify(BLE_maxBrakeWatts);
     return;
   }
   if (userConfig->getShifterDir() != _oldParams.getShifterDir()) {
     _oldParams.setShifterDir(userConfig->getShifterDir());
-    ss2kCustomCharacteristic::notify(BLE_shiftDir);
+    BLE_ss2kCustomCharacteristic::notify(BLE_shiftDir);
     return;
   }
 }

@@ -15,7 +15,7 @@
 #include "ERG_Mode.h"
 #include "UdpAppender.h"
 #include "WebsocketAppender.h"
-#include "Custom_Characteristic.h"
+#include "BLE_Custom_Characteristic.h"
 #include <Constants.h>
 #include "settings.h"
 
@@ -110,10 +110,10 @@ void setup() {
   // Initialize LittleFS
   SS2K_LOG(MAIN_LOG_TAG, "Mounting Filesystem");
   if (!LittleFS.begin(false)) {
-    FSUpgrader upgrade;
+    // FSUpgrader upgrade;
     SS2K_LOG(MAIN_LOG_TAG, "An Error has occurred while mounting LittleFS.");
     // BEGIN FS UPGRADE SPECIFIC//
-    upgrade.upgradeFS();
+    // upgrade.upgradeFS();
     // END FS UPGRADE SPECIFIC//
   }
 
@@ -200,7 +200,7 @@ void SS2K::maintenanceLoop(void *pvParameters) {
     vTaskDelay(73 / portTICK_RATE_MS);
 
     // send BLE notification for any userConfig values that changed.
-    ss2kCustomCharacteristic::parseNemit();
+    BLE_ss2kCustomCharacteristic::parseNemit();
 
     // If we're in ERG mode, modify shift commands to inc/dec the target watts instead.
     ss2k->FTMSModeShiftModifier();
@@ -373,7 +373,7 @@ void SS2K::FTMSModeShiftModifier() {
       }
     }
     ss2k->lastShifterPosition = rtConfig->getShifterPosition();
-    ss2kCustomCharacteristic::notify(BLE_shifterPosition);
+    BLE_ss2kCustomCharacteristic::notify(BLE_shifterPosition);
   }
 }
 

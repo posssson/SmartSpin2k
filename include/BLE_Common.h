@@ -12,6 +12,8 @@
 #include <memory>
 #include <NimBLEDevice.h>
 #include <Arduino.h>
+#include <queue>
+#include <deque>
 #include "Main.h"
 #include "BLE_Definitions.h"
 
@@ -50,25 +52,11 @@ class MyCallbacks : public NimBLECharacteristicCallbacks {
   void onSubscribe(NimBLECharacteristic *pCharacteristic, ble_gap_conn_desc *desc, uint16_t subValue);
 };
 
-class ss2kCustomCharacteristicCallbacks : public BLECharacteristicCallbacks {
-  void onWrite(BLECharacteristic *);
-  void onSubscribe(NimBLECharacteristic *pCharacteristic, ble_gap_conn_desc *desc, uint16_t subValue);
-};
-
-class ss2kCustomCharacteristic {
- public:
-  // Used internally for notify and onWrite Callback.
-  static void process(std::string rxValue);
-  // Custom Characteristic value that needs to be notified
-  static void notify(char _item, int tableRow = -1);
-  // Notify any changed value in userConfig
-  static void parseNemit();
-};
-
-extern std::string FTMSWrite;
-
 // TODO add the rest of the server to this class
 class SpinBLEServer {
+ private:
+  void updateWheelAndCrankRev();
+
  public:
   struct {
     bool Heartrate : 1;
@@ -79,25 +67,20 @@ class SpinBLEServer {
   NimBLEServer *pServer = nullptr;
   void setClientSubscribed(NimBLEUUID pUUID, bool subscribe);
   void notifyShift();
-
+  double calculateSpeed();
+  void update();
+  // Queue to store writes to any of the callbacks to the server
+  std::queue<std::string> writeCache;
   SpinBLEServer() { memset(&clientSubscribed, 0, sizeof(clientSubscribed)); }
 };
 
 extern SpinBLEServer spinBLEServer;
 
 void startBLEServer();
-bool spinDown();
 void logCharacteristic(char *buffer, const size_t bufferCapacity, const byte *data, const size_t dataLength, const NimBLEUUID serviceUUID, const NimBLEUUID charUUID,
                        const char *format, ...);
-void updateWheelAndCrankRev();
-void updateIndoorBikeDataChar();
-void updateCyclingPowerMeasurementChar();
-void updateCyclingSpeedCadenceChar();
 void calculateInstPwrFromHR();
-void updateHeartRateMeasurementChar();
 int connectedClientCount();
-void controlPointIndicate();
-void processFTMSWrite();
 
 // BLE FIRMWARE UPDATER
 void BLEFirmwareSetup();
@@ -128,7 +111,7 @@ class SpinBLEAdvertisedDevice {
 
  public:  // eventually these should be made private
   // // TODO: Do we dispose of this object?  Is so, we need to de-allocate the queue.
-  // //       This distructor was called too early and the queue was deleted out from
+  // //       This destructor was called too early and the queue was deleted out from
   // //       under us.
   // ~SpinBLEAdvertisedDevice() {
   //   if (dataBuffer != nullptr) {
