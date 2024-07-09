@@ -232,15 +232,6 @@ class CyclingPowerMeasurement {
     data.push_back(static_cast<uint8_t>((instantaneousPower >> 8) & 0xFF));
 
     // Conditional fields based on flags
-    if (flags.crankRevolutionDataPresent) {
-      // Add crank revolution data if present
-      data.push_back(static_cast<uint8_t>(cumulativeCrankRevolutions & 0xFF));
-      data.push_back(static_cast<uint8_t>((cumulativeCrankRevolutions >> 8) & 0xFF));
-
-      data.push_back(static_cast<uint8_t>(lastCrankEventTime & 0xFF));
-      data.push_back(static_cast<uint8_t>((lastCrankEventTime >> 8) & 0xFF));
-    }
-    // Conditional fields based on flags
     if (flags.wheelRevolutionDataPresent) {
       // Add wheel revolution data if present
       data.push_back(static_cast<uint8_t>(cumulativeWheelRevolutions & 0xFF));
@@ -250,6 +241,15 @@ class CyclingPowerMeasurement {
 
       data.push_back(static_cast<uint8_t>(lastWheelEventTime & 0xFF));
       data.push_back(static_cast<uint8_t>((lastWheelEventTime >> 8) & 0xFF));
+    }
+    // Conditional fields based on flags
+    if (flags.crankRevolutionDataPresent) {
+      // Add crank revolution data if present
+      data.push_back(static_cast<uint8_t>(cumulativeCrankRevolutions & 0xFF));
+      data.push_back(static_cast<uint8_t>((cumulativeCrankRevolutions >> 8) & 0xFF));
+
+      data.push_back(static_cast<uint8_t>(lastCrankEventTime & 0xFF));
+      data.push_back(static_cast<uint8_t>((lastCrankEventTime >> 8) & 0xFF));
     }
 
     return data;

@@ -28,9 +28,9 @@ void BLECommunications(void *pvParameters) {
     for (auto &_BLEd : spinBLEClient.myBLEDevices) {  // loop through discovered devices
       if (_BLEd.connectedClientID != BLE_HS_CONN_HANDLE_NONE) {
         SS2K_LOGW(BLE_COMMON_LOG_TAG, "Address: (%s) Client ID: (%d) SerUUID: (%s) CharUUID: (%s) HRM: (%s) PM: (%s) CSC: (%s) CT: (%s) doConnect: (%s) postConnect: (%s)",
-                 _BLEd.peerAddress.toString().c_str(), _BLEd.connectedClientID, _BLEd.serviceUUID.toString().c_str(), _BLEd.charUUID.toString().c_str(),
-                 _BLEd.isHRM ? "true" : "false", _BLEd.isPM ? "true" : "false", _BLEd.isCSC ? "true" : "false", _BLEd.isCT ? "true" : "false", _BLEd.doConnect ? "true" : "false",
-                 _BLEd.getPostConnected() ? "true" : "false");
+                  _BLEd.peerAddress.toString().c_str(), _BLEd.connectedClientID, _BLEd.serviceUUID.toString().c_str(), _BLEd.charUUID.toString().c_str(),
+                  _BLEd.isHRM ? "true" : "false", _BLEd.isPM ? "true" : "false", _BLEd.isCSC ? "true" : "false", _BLEd.isCT ? "true" : "false", _BLEd.doConnect ? "true" : "false",
+                  _BLEd.getPostConnected() ? "true" : "false");
         if (_BLEd.advertisedDevice) {                                                                // is device registered?
           if ((_BLEd.connectedClientID != BLE_HS_CONN_HANDLE_NONE) && (_BLEd.doConnect == false)) {  // client must not be in connection process
             if (BLEDevice::getClientByPeerAddress(_BLEd.peerAddress)) {                              // nullptr check
@@ -101,18 +101,10 @@ void BLECommunications(void *pvParameters) {
     spinBLEClient.postConnect();
 
     if (connectedClientCount() > 0 && !ss2k->isUpdating) {
-      // Setup the information
-      updateWheelAndCrankRev();
-      // update the BLE information on the server
-      updateIndoorBikeDataChar();
-      updateCyclingPowerMeasurementChar();
-      updateHeartRateMeasurementChar();
-      updateCyclingSpeedCadenceChar();
-      // controlPointIndicate();
-      if (spinDown()) {
-        // Possibly do something in the future. Right now we just fake the spindown.
-      }
-      processFTMSWrite();
+      spinBLEServer.update();
+      // if (spinDown()) {
+      //  Possibly do something in the future. Right now we just fake the spin down.
+      // }
 
 #ifdef INTERNAL_ERG_4EXT_FTMS
       uint8_t test[] = {FitnessMachineControlPointProcedure::SetIndoorBikeSimulationParameters, 0x00, 0x00, 0x00, 0x00, 0x28, 0x33};
