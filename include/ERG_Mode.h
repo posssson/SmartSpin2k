@@ -14,7 +14,7 @@
 #define ERG_MODE_LOG_CSV_TAG "ERG_Mode_CSV"
 #define POWERTABLE_LOG_TAG   "PTable"
 #define ERG_MODE_DELAY       700
-#define RETURN_ERROR         INT_MIN
+#define RETURN_ERROR         INT16_MIN
 
 extern TaskHandle_t ErgTask;
 void setupERG();
@@ -47,7 +47,7 @@ class PowerBuffer {
 class TableEntry {
  public:
   int16_t targetPosition;
-  int readings;
+  int8_t readings;
   TableEntry() {
     this->targetPosition = INT16_MIN;
     this->readings       = 0;
@@ -99,6 +99,8 @@ class PowerTable {
   void extrapFillTable();
   void extrapolateDiagonal();
   int getNumEntries();
+  // remove entries with < 1 readings
+  void clean();
 };
 
 class ErgMode {

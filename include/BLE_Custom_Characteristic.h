@@ -54,6 +54,8 @@ const uint8_t BLE_maxBrakeWatts         = 0x22;  // "" Maximum watts for the oth
 const uint8_t BLE_restartBLE            = 0x23;  // Closes all connections to the BLE client - used to connect new BLE devices the user selects.
 const uint8_t BLE_scanBLE               = 0x24;  // Scan for new BLE devices
 const uint8_t BLE_firmwareVer           = 0x25;  // String of the current firmware version
+const uint8_t BLE_resetPowerTable       = 0x26;  // Delete all power table information.
+const uint8_t BLE_powerTableData        = 0x27;  // sets or requests power table data
 
 class BLE_ss2kCustomCharacteristic {
  public:
@@ -62,8 +64,8 @@ class BLE_ss2kCustomCharacteristic {
   // Used internally for notify and onWrite Callback.
   static void process(std::string rxValue);
   // Custom Characteristic value that needs to be notified
-  static void notify(char _item);
-    // Notify any changed value in userConfig
+  static void notify(char _item, int tableRow = -1);
+  // Notify any changed value in userConfig
   static void parseNemit();
 
  private:
