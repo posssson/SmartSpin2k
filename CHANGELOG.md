@@ -58,6 +58,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Moved wire guard up 1 mm.
 - Added JLL-IC400
 - Tightened up tolerances on the case. 
+- Increased gear spacing by .1mm
+- Reduced bearing clearance by .15mm
 
 
 ## [23.6.28]
