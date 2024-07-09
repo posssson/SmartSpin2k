@@ -28,14 +28,17 @@
 #define BATTERYSERVICE_UUID        NimBLEUUID((uint16_t)0x180F)  // heart rate sensor service uuid, as defined in gatt specifications
 #define BATTERYCHARACTERISTIC_UUID NimBLEUUID((uint16_t)0x2A19)
 
+// Cycling Speed And Cadence
+#define CSCSERVICE_UUID      NimBLEUUID((uint16_t)0x1816)
+#define CSCMEASUREMENT_UUID  NimBLEUUID((uint16_t)0x2A5B)
+#define CSCFEATURE_UUID      NimBLEUUID((uint16_t)0x2A5C)
+#define SENSORLOCATION_UUID  NimBLEUUID((uint16_t)0x2A5D)
+#define CSCCONTROLPOINT_UUID NimBLEUUID((uint16_t)0x2A55)
+
 // Cycling Power Service
-#define CSCSERVICE_UUID              NimBLEUUID((uint16_t)0x1816)
-#define CSCMEASUREMENT_UUID          NimBLEUUID((uint16_t)0x2A5B)
-#define CSCFEATURE_UUID              NimBLEUUID((uint16_t)0x2A5C)
 #define CYCLINGPOWERSERVICE_UUID     NimBLEUUID((uint16_t)0x1818)
 #define CYCLINGPOWERMEASUREMENT_UUID NimBLEUUID((uint16_t)0x2A63)
 #define CYCLINGPOWERFEATURE_UUID     NimBLEUUID((uint16_t)0x2A65)
-#define SENSORLOCATION_UUID          NimBLEUUID((uint16_t)0x2A5D)
 
 // Fitness Machine Service
 #define FITNESSMACHINESERVICE_UUID              NimBLEUUID((uint16_t)0x1826)

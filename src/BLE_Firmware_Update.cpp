@@ -13,7 +13,7 @@
 #include <esp_ota_ops.h>
 #include <Constants.h>
 #include <NimBLEDevice.h>
-#include <Custom_Characteristic.h>
+#include <BLE_Custom_Characteristic.h>
 
 /*------------------------------------------------------------------------------
   BLE instances & variables

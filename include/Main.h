@@ -10,7 +10,7 @@
 #include "HTTP_Server_Basic.h"
 #include "SmartSpin_parameters.h"
 #include "BLE_Common.h"
-#include "LittleFS_Upgrade.h"
+//#include "LittleFS_Upgrade.h"
 #include "boards.h"
 #include "SensorCollector.h"
 #include "SS2KLog.h"
