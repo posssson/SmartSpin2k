@@ -30,6 +30,11 @@ boltDiameter = 5.5;
 
 // armSlotWidth
 armSlotWidth = 9.2;
+
+//Required to make radius look round
+$fa = 1;
+$fs = 0.5;
+
 ///////////////////////////
 module strapHolder()
 {

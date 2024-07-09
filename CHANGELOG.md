@@ -30,10 +30,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added more robust activity monitoring and reboot every 30 minutes if there is no activity.
 - Updated all references of SmartSkin2K to SmartSpin2k for consistency.
 - Fixed bug where BT scanner "Loading" wouldn't disappear if "NONE" and "NONE" were selected.
-- Fixed Bug where ERG setpoint state wasn't going to the positive control loop correctly.
+- Fixed Bug where ERG setpoint state wasn't going to the positive control loop correctly.  
+- updated arm length readme for JLL IC400
+- Added yokeWidth table to bike mount readme for bikes that use the OpenSCAD yoke.
+- improved OpenSCAD for yoke to add roundness to the curve.
 - Refactored BLE_Server into separate files for each BLE Service.
 - Fixed bug in CPS service for Wahoo app (and probably others).
 - Depreciated the SPIFFS->LittleFS upgrader.
+
 
 ### Hardware
 - added Yesoul S3.
