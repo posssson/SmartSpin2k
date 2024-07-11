@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactored BLE_Server into separate files for each BLE Service.
 - Fixed bug in CPS service for Wahoo app (and probably others).
 - Depreciated the SPIFFS->LittleFS upgrader.
+- Increased ERG mode sensitivity.
 
 ### Hardware
 - added Yesoul S3.

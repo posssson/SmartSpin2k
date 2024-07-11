@@ -227,14 +227,14 @@ int PowerTable::lookup(int watts, int cad) {
     }
 
     // Extrapolation for watts out of bounds
-    if (watts < 0 || watts > (POWERTABLE_WATT_SIZE - 1) * POWERTABLE_WATT_INCREMENT) {
+    if (watts > (POWERTABLE_WATT_SIZE - 1) * POWERTABLE_WATT_INCREMENT) {
       int extrapCol1 = -1, extrapCol2 = -1;
       for (int j = 0; j < POWERTABLE_WATT_SIZE; ++j) {
         if (this->tableRow[cadIndex].tableEntry[j].targetPosition != INT16_MIN) {
-          if (extrapCol1 == -1) {
-            extrapCol1 = j;
-          } else {
+          if (extrapCol2 == -1) {
             extrapCol2 = j;
+          } else {
+            extrapCol1 = j;
             break;
           }
         }
@@ -881,7 +881,8 @@ bool PowerTable::_manageSaveState() {
         file.read((uint8_t*)&savedTargetPosition, sizeof(savedTargetPosition));
         file.read((uint8_t*)&savedReadings, sizeof(savedReadings));
         // Does the saved file have a position that the active session has also recorded?
-        if ((this->tableRow[i].tableEntry[j].targetPosition != INT16_MIN) && (this->tableRow[i].tableEntry[j].readings > 3) && (savedReadings > 0)) {
+        // We start comparing at watt position 3 (j>2) because low resistance positions are notoriously unreliable.
+        if ((j > 2) && (this->tableRow[i].tableEntry[j].targetPosition != INT16_MIN) && (this->tableRow[i].tableEntry[j].readings > MINIMUM_RELIABLE_POSITIONS) && (savedReadings > 0)) {
           reliablePositions++;
         }
       }
@@ -917,7 +918,7 @@ bool PowerTable::_manageSaveState() {
         int8_t savedReadings        = 0;
         file.read((uint8_t*)&savedTargetPosition, sizeof(savedTargetPosition));
         file.read((uint8_t*)&savedReadings, sizeof(savedReadings));
-        if ((this->tableRow[i].tableEntry[j].targetPosition != INT16_MIN) && (savedTargetPosition != INT16_MIN) && (savedReadings > 0)) {
+        if ((this->tableRow[i].tableEntry[j].targetPosition != INT16_MIN) && (savedTargetPosition != INT16_MIN) && (savedReadings > 0) && (this->tableRow[i].tableEntry[j].targetPosition != INT16_MIN) > MINIMUM_RELIABLE_POSITIONS) {
           int offset = this->tableRow[i].tableEntry[j].targetPosition - savedTargetPosition;
           offsetDifferences.push_back(offset);
           SS2K_LOG(POWERTABLE_LOG_TAG, "offset %d", offset);
@@ -1117,7 +1118,7 @@ void ErgMode::_setPointChangeState(int newCadence, Measurement& newWatts) {
   if (tableResult == RETURN_ERROR) {
     int wattChange  = newWatts.getTarget() - newWatts.getValue();
     float deviation = ((float)wattChange * 100.0) / ((float)newWatts.getTarget());
-    float factor    = abs(deviation) > 10 ? userConfig->getERGSensitivity() : userConfig->getERGSensitivity() / 2;
+    float factor    = abs(deviation) > 10 ? userConfig->getERGSensitivity() * 2 : userConfig->getERGSensitivity() / 2;
     tableResult     = rtConfig->getCurrentIncline() + (wattChange * factor);
   }
 
