@@ -358,8 +358,8 @@ TestResults PowerTable::testNeighbors(int i, int j, int testValue) {
       }
     }
   }
-  
-  if (returnResult.bottomNeighbor.targetPosition > testValue  || returnResult.bottomNeighbor.targetPosition == INT16_MIN) {
+
+  if (returnResult.bottomNeighbor.targetPosition < testValue  || returnResult.bottomNeighbor.targetPosition == INT16_MIN) {
     returnResult.bottomNeighbor.passedTest = 1;
     SS2K_LOG("testResults", "bottom set");
   }
