@@ -287,14 +287,14 @@ int PowerTable::lookup(int watts, int cad) {
   return static_cast<int>(R * 100);
 }
 
-// returns bit field of all neighbors that are found (even bits) and within expected values (odd bits).
+// returns class of all neighbors that are found and within expected values.
 TestResults PowerTable::testNeighbors(int i, int j, int testValue) {
   TestResults returnResult;
   // Get the neighbors
   // Check left neighbor
+  SS2K_LOG("testResults", "%d | %d | %d", i, j, testValue);
   if (j > 0) {
-    int left;
-    for (left = j - 1; left >= 0; --left) {
+    for (int left = j - 1; left >= 0; --left) {
       if (this->tableRow[i].tableEntry[left].targetPosition != INT16_MIN) {
         returnResult.leftNeighbor.targetPosition = this->tableRow[i].tableEntry[left].targetPosition;
         returnResult.leftNeighbor.i              = i;
@@ -303,15 +303,16 @@ TestResults PowerTable::testNeighbors(int i, int j, int testValue) {
         break;
       }
     }
-    if (testValue > this->tableRow[i].tableEntry[left].targetPosition || this->tableRow[i].tableEntry[left].targetPosition == INT16_MIN) {
-      returnResult.leftNeighbor.passedTest = 1;
-    }
+  }
+
+  if (returnResult.leftNeighbor.targetPosition < testValue || returnResult.leftNeighbor.targetPosition == INT16_MIN) {
+    returnResult.leftNeighbor.passedTest = 1;
+    SS2K_LOG("testResults", "left set");
   }
 
   // Check right neighbor
   if (j < POWERTABLE_WATT_SIZE - 1) {
-    int right;
-    for (right = j + 1; right < POWERTABLE_WATT_SIZE; ++right) {
+    for (int right = j + 1; right < POWERTABLE_WATT_SIZE; ++right) {
       if (this->tableRow[i].tableEntry[right].targetPosition != INT16_MIN) {
         returnResult.rightNeighbor.targetPosition = this->tableRow[i].tableEntry[right].targetPosition;
         returnResult.rightNeighbor.i              = i;
@@ -320,15 +321,16 @@ TestResults PowerTable::testNeighbors(int i, int j, int testValue) {
         break;
       }
     }
-    if (testValue < this->tableRow[i].tableEntry[right].targetPosition || this->tableRow[i].tableEntry[right].targetPosition == INT16_MIN) {
-      returnResult.rightNeighbor.passedTest = 1;
-    }
+  }
+
+  if (returnResult.rightNeighbor.targetPosition > testValue || returnResult.rightNeighbor.targetPosition == INT16_MIN) {
+    returnResult.rightNeighbor.passedTest = 1;
+    SS2K_LOG("testResults", "right set");
   }
 
   // Check top neighbor
   if (i > 0) {
-    int up;
-    for (up = i - 1; up >= 0; --up) {
+    for (int up = i - 1; up >= 0; --up) {
       if (this->tableRow[up].tableEntry[j].targetPosition != INT16_MIN) {
         returnResult.topNeighbor.targetPosition = this->tableRow[up].tableEntry[j].targetPosition;
         returnResult.topNeighbor.i              = up;
@@ -337,15 +339,16 @@ TestResults PowerTable::testNeighbors(int i, int j, int testValue) {
         break;
       }
     }
-    if (testValue > this->tableRow[up].tableEntry[j].targetPosition || this->tableRow[up].tableEntry[j].targetPosition == INT16_MIN) {
-      returnResult.topNeighbor.passedTest = 1;
-    }
+  }
+
+  if (returnResult.topNeighbor.targetPosition > testValue  || returnResult.topNeighbor.targetPosition == INT16_MIN) {
+    returnResult.topNeighbor.passedTest = 1;
+    SS2K_LOG("testResults", "top set");
   }
 
   // Check bottom neighbor
   if (i < POWERTABLE_CAD_SIZE - 1) {
-    int down;
-    for (down = i + 1; down < POWERTABLE_CAD_SIZE; ++down) {
+    for (int down = i + 1; down < POWERTABLE_CAD_SIZE; ++down) {
       if (this->tableRow[down].tableEntry[j].targetPosition != INT16_MIN) {
         returnResult.bottomNeighbor.targetPosition = this->tableRow[down].tableEntry[j].targetPosition;
         returnResult.bottomNeighbor.i              = down;
@@ -354,10 +357,13 @@ TestResults PowerTable::testNeighbors(int i, int j, int testValue) {
         break;
       }
     }
-    if (testValue < this->tableRow[down].tableEntry[j].targetPosition || this->tableRow[down].tableEntry[j].targetPosition == INT16_MIN) {
-      returnResult.bottomNeighbor.passedTest = 1;
-    }
   }
+  
+  if (returnResult.bottomNeighbor.targetPosition > testValue  || returnResult.bottomNeighbor.targetPosition == INT16_MIN) {
+    returnResult.bottomNeighbor.passedTest = 1;
+    SS2K_LOG("testResults", "bottom set");
+  }
+
   if (returnResult.bottomNeighbor.found && returnResult.topNeighbor.found && returnResult.rightNeighbor.found && returnResult.leftNeighbor.found) {
     returnResult.allNeighborsFound = 1;
   }
