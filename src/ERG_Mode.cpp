@@ -292,7 +292,6 @@ TestResults PowerTable::testNeighbors(int i, int j, int testValue) {
   TestResults returnResult;
   // Get the neighbors
   // Check left neighbor
-  SS2K_LOG("testResults", "%d | %d | %d", i, j, testValue);
   if (j > 0) {
     for (int left = j - 1; left >= 0; --left) {
       if (this->tableRow[i].tableEntry[left].targetPosition != INT16_MIN) {
@@ -307,7 +306,6 @@ TestResults PowerTable::testNeighbors(int i, int j, int testValue) {
 
   if (returnResult.leftNeighbor.targetPosition < testValue || returnResult.leftNeighbor.targetPosition == INT16_MIN) {
     returnResult.leftNeighbor.passedTest = 1;
-    SS2K_LOG("testResults", "left set");
   }
 
   // Check right neighbor
@@ -325,7 +323,6 @@ TestResults PowerTable::testNeighbors(int i, int j, int testValue) {
 
   if (returnResult.rightNeighbor.targetPosition > testValue || returnResult.rightNeighbor.targetPosition == INT16_MIN) {
     returnResult.rightNeighbor.passedTest = 1;
-    SS2K_LOG("testResults", "right set");
   }
 
   // Check top neighbor
@@ -341,9 +338,8 @@ TestResults PowerTable::testNeighbors(int i, int j, int testValue) {
     }
   }
 
-  if (returnResult.topNeighbor.targetPosition > testValue  || returnResult.topNeighbor.targetPosition == INT16_MIN) {
+  if (returnResult.topNeighbor.targetPosition > testValue || returnResult.topNeighbor.targetPosition == INT16_MIN) {
     returnResult.topNeighbor.passedTest = 1;
-    SS2K_LOG("testResults", "top set");
   }
 
   // Check bottom neighbor
@@ -359,9 +355,8 @@ TestResults PowerTable::testNeighbors(int i, int j, int testValue) {
     }
   }
 
-  if (returnResult.bottomNeighbor.targetPosition < testValue  || returnResult.bottomNeighbor.targetPosition == INT16_MIN) {
+  if (returnResult.bottomNeighbor.targetPosition < testValue || returnResult.bottomNeighbor.targetPosition == INT16_MIN) {
     returnResult.bottomNeighbor.passedTest = 1;
-    SS2K_LOG("testResults", "bottom set");
   }
 
   if (returnResult.bottomNeighbor.found && returnResult.topNeighbor.found && returnResult.rightNeighbor.found && returnResult.leftNeighbor.found) {
@@ -370,6 +365,7 @@ TestResults PowerTable::testNeighbors(int i, int j, int testValue) {
   if (returnResult.bottomNeighbor.passedTest && returnResult.topNeighbor.passedTest && returnResult.rightNeighbor.passedTest && returnResult.leftNeighbor.passedTest) {
     returnResult.allNeighborsPassed = 1;
   }
+  SS2K_LOG("testResults", "%d | %d | %d", i, j, testValue);
   return returnResult;
 }
 
@@ -896,7 +892,7 @@ bool PowerTable::_manageSaveState() {
         file.read((uint8_t*)&savedTargetPosition, sizeof(savedTargetPosition));
         file.read((uint8_t*)&savedReadings, sizeof(savedReadings));
         if ((this->tableRow[i].tableEntry[j].targetPosition != INT16_MIN) && (savedTargetPosition != INT16_MIN) && (savedReadings > 0) &&
-            (this->tableRow[i].tableEntry[j].targetPosition != INT16_MIN) > MINIMUM_RELIABLE_POSITIONS) {
+            (this->tableRow[i].tableEntry[j].readings > MINIMUM_RELIABLE_POSITIONS)) {
           int offset = this->tableRow[i].tableEntry[j].targetPosition - savedTargetPosition;
           offsetDifferences.push_back(offset);
           SS2K_LOG(POWERTABLE_LOG_TAG, "offset %d", offset);
