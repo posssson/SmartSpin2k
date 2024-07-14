@@ -253,52 +253,10 @@ int PowerTable::lookup(int watts, int cad) {
     return INT16_MIN;
   }
 
-  // Initialize neighbors
-  int leftNeighbor = INT16_MIN, rightNeighbor = INT16_MIN, topNeighbor = INT16_MIN, bottomNeighbor = INT16_MIN;
-  int leftCad = -1, leftWatt = -1, rightCad = -1, rightWatt = -1, topCad = -1, topWatt = -1, bottomCad = -1, bottomWatt = -1;
-
-  // Search for left neighbor
-  for (int j = wattIndex - 1; j >= 0; --j) {
-    if (this->tableRow[cadIndex].tableEntry[j].targetPosition != INT16_MIN) {
-      leftNeighbor = this->tableRow[cadIndex].tableEntry[j].targetPosition;
-      leftCad      = cadIndex;
-      leftWatt     = j;
-      break;
-    }
-  }
-
-  // Search for right neighbor
-  for (int j = wattIndex + 1; j < POWERTABLE_CAD_SIZE; ++j) {
-    if (this->tableRow[cadIndex].tableEntry[j].targetPosition != INT16_MIN) {
-      rightNeighbor = this->tableRow[cadIndex].tableEntry[j].targetPosition;
-      rightCad      = cadIndex;
-      rightWatt     = j;
-      break;
-    }
-  }
-
-  // Search for top neighbor
-  for (int i = cadIndex - 1; i >= 0; --i) {
-    if (this->tableRow[i].tableEntry[wattIndex].targetPosition != INT16_MIN) {
-      topNeighbor = this->tableRow[i].tableEntry[wattIndex].targetPosition;
-      topCad      = i;
-      topWatt     = wattIndex;
-      break;
-    }
-  }
-
-  // Search for bottom neighbor
-  for (int i = cadIndex + 1; i < POWERTABLE_CAD_SIZE; ++i) {
-    if (this->tableRow[i].tableEntry[wattIndex].targetPosition != INT16_MIN) {
-      bottomNeighbor = this->tableRow[i].tableEntry[wattIndex].targetPosition;
-      bottomCad      = i;
-      bottomWatt     = wattIndex;
-      break;
-    }
-  }
+  TestResults neighbors = testNeighbors(cadIndex, wattIndex, INT16_MIN);
 
   // Check if any of the neighbors are missing
-  if (leftNeighbor == INT16_MIN || rightNeighbor == INT16_MIN || topNeighbor == INT16_MIN || bottomNeighbor == INT16_MIN) {
+  if (!neighbors.allNeighborsFound) {
     if (this->tableRow[cadIndex].tableEntry[wattIndex].targetPosition != INT16_MIN) {
       return this->tableRow[cadIndex].tableEntry[wattIndex].targetPosition * 100;
     }
@@ -306,15 +264,15 @@ int PowerTable::lookup(int watts, int cad) {
   }
 
   // Bilinear interpolation
-  double x1 = leftWatt * POWERTABLE_WATT_INCREMENT;
-  double x2 = rightWatt * POWERTABLE_WATT_INCREMENT;
-  double y1 = topCad * POWERTABLE_CAD_INCREMENT + MINIMUM_TABLE_CAD;
-  double y2 = bottomCad * POWERTABLE_CAD_INCREMENT + MINIMUM_TABLE_CAD;
+  double x1 = neighbors.leftNeighbor.i * POWERTABLE_WATT_INCREMENT;
+  double x2 = neighbors.rightNeighbor.i * POWERTABLE_WATT_INCREMENT;
+  double y1 = neighbors.topNeighbor.j * POWERTABLE_CAD_INCREMENT + MINIMUM_TABLE_CAD;
+  double y2 = neighbors.bottomNeighbor.j * POWERTABLE_CAD_INCREMENT + MINIMUM_TABLE_CAD;
 
-  double Q11 = leftNeighbor;
-  double Q12 = rightNeighbor;
-  double Q21 = topNeighbor;
-  double Q22 = bottomNeighbor;
+  double Q11 = neighbors.leftNeighbor.targetPosition;
+  double Q12 = neighbors.rightNeighbor.targetPosition;
+  double Q21 = neighbors.topNeighbor.targetPosition;
+  double Q22 = neighbors.bottomNeighbor.targetPosition;
 
   double R1 = ((x2 - watts) / (x2 - x1)) * Q11 + ((watts - x1) / (x2 - x1)) * Q12;
   double R2 = ((x2 - watts) / (x2 - x1)) * Q21 + ((watts - x1) / (x2 - x1)) * Q22;
@@ -329,59 +287,84 @@ int PowerTable::lookup(int watts, int cad) {
   return static_cast<int>(R * 100);
 }
 
-bool PowerTable::testNeighbors(int i, int j, int value) {
+// returns bit field of all neighbors that are found (even bits) and within expected values (odd bits).
+TestResults PowerTable::testNeighbors(int i, int j, int testValue) {
+  TestResults returnResult;
   // Get the neighbors
-  int leftNeighbor   = INT16_MIN;
-  int rightNeighbor  = INT16_MIN;
-  int topNeighbor    = INT16_MIN;
-  int bottomNeighbor = INT16_MIN;
-
   // Check left neighbor
   if (j > 0) {
-    for (int left = j - 1; left >= 0; --left) {
+    int left;
+    for (left = j - 1; left >= 0; --left) {
       if (this->tableRow[i].tableEntry[left].targetPosition != INT16_MIN) {
-        leftNeighbor = this->tableRow[i].tableEntry[left].targetPosition;
+        returnResult.leftNeighbor.targetPosition = this->tableRow[i].tableEntry[left].targetPosition;
+        returnResult.leftNeighbor.i              = i;
+        returnResult.leftNeighbor.j              = left;
+        returnResult.leftNeighbor.found          = 1;
         break;
       }
+    }
+    if (testValue > this->tableRow[i].tableEntry[left].targetPosition || this->tableRow[i].tableEntry[left].targetPosition == INT16_MIN) {
+      returnResult.leftNeighbor.passedTest = 1;
     }
   }
 
   // Check right neighbor
   if (j < POWERTABLE_WATT_SIZE - 1) {
-    for (int right = j + 1; right < POWERTABLE_WATT_SIZE; ++right) {
+    int right;
+    for (right = j + 1; right < POWERTABLE_WATT_SIZE; ++right) {
       if (this->tableRow[i].tableEntry[right].targetPosition != INT16_MIN) {
-        rightNeighbor = this->tableRow[i].tableEntry[right].targetPosition;
+        returnResult.rightNeighbor.targetPosition = this->tableRow[i].tableEntry[right].targetPosition;
+        returnResult.rightNeighbor.i              = i;
+        returnResult.rightNeighbor.j              = right;
+        returnResult.rightNeighbor.found          = 1;
         break;
       }
+    }
+    if (testValue < this->tableRow[i].tableEntry[right].targetPosition || this->tableRow[i].tableEntry[right].targetPosition == INT16_MIN) {
+      returnResult.rightNeighbor.passedTest = 1;
     }
   }
 
   // Check top neighbor
   if (i > 0) {
-    for (int up = i - 1; up >= 0; --up) {
+    int up;
+    for (up = i - 1; up >= 0; --up) {
       if (this->tableRow[up].tableEntry[j].targetPosition != INT16_MIN) {
-        topNeighbor = this->tableRow[up].tableEntry[j].targetPosition;
+        returnResult.topNeighbor.targetPosition = this->tableRow[up].tableEntry[j].targetPosition;
+        returnResult.topNeighbor.i              = up;
+        returnResult.topNeighbor.j              = j;
+        returnResult.topNeighbor.found          = 1;
         break;
       }
+    }
+    if (testValue > this->tableRow[up].tableEntry[j].targetPosition || this->tableRow[up].tableEntry[j].targetPosition == INT16_MIN) {
+      returnResult.topNeighbor.passedTest = 1;
     }
   }
 
   // Check bottom neighbor
   if (i < POWERTABLE_CAD_SIZE - 1) {
-    for (int down = i + 1; down < POWERTABLE_CAD_SIZE; ++down) {
+    int down;
+    for (down = i + 1; down < POWERTABLE_CAD_SIZE; ++down) {
       if (this->tableRow[down].tableEntry[j].targetPosition != INT16_MIN) {
-        bottomNeighbor = this->tableRow[down].tableEntry[j].targetPosition;
+        returnResult.bottomNeighbor.targetPosition = this->tableRow[down].tableEntry[j].targetPosition;
+        returnResult.bottomNeighbor.i              = down;
+        returnResult.bottomNeighbor.j              = j;
+        returnResult.bottomNeighbor.found          = 1;
         break;
       }
     }
+    if (testValue < this->tableRow[down].tableEntry[j].targetPosition || this->tableRow[down].tableEntry[j].targetPosition == INT16_MIN) {
+      returnResult.bottomNeighbor.passedTest = 1;
+    }
   }
-
-  // Validate the value against the neighbors
-  if ((leftNeighbor == INT16_MIN || value > leftNeighbor) && (rightNeighbor == INT16_MIN || value < rightNeighbor) && (topNeighbor == INT16_MIN || value < topNeighbor) &&
-      (bottomNeighbor == INT16_MIN || value > bottomNeighbor)) {
-    return true;
+  if (returnResult.bottomNeighbor.found && returnResult.topNeighbor.found && returnResult.rightNeighbor.found && returnResult.leftNeighbor.found) {
+    returnResult.allNeighborsFound = 1;
   }
-  return false;
+  if (returnResult.bottomNeighbor.passedTest && returnResult.topNeighbor.passedTest && returnResult.rightNeighbor.passedTest && returnResult.leftNeighbor.passedTest) {
+    returnResult.allNeighborsPassed = 1;
+  }
+  return returnResult;
 }
 
 void PowerTable::fillTable() {
@@ -402,7 +385,7 @@ void PowerTable::fillTable() {
           // Linear interpolation
           tempValue = this->tableRow[i].tableEntry[left].targetPosition +
                       (this->tableRow[i].tableEntry[right].targetPosition - this->tableRow[i].tableEntry[left].targetPosition) * (j - left) / (right - left);
-          if (this->testNeighbors(i, j, tempValue)) {
+          if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
             this->tableRow[i].tableEntry[j].targetPosition = tempValue;
           }
         }
@@ -424,7 +407,7 @@ void PowerTable::fillTable() {
           // Linear interpolation
           tempValue = this->tableRow[top].tableEntry[j].targetPosition +
                       (this->tableRow[bottom].tableEntry[j].targetPosition - this->tableRow[top].tableEntry[j].targetPosition) * (i - top) / (bottom - top);
-          if (this->testNeighbors(i, j, tempValue)) {
+          if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
             this->tableRow[i].tableEntry[j].targetPosition = tempValue;
           }
         }
@@ -472,14 +455,14 @@ void PowerTable::extrapFillTable() {
           // Extrapolate to the left
           tempValue = this->tableRow[i].tableEntry[left].targetPosition -
                       (this->tableRow[i].tableEntry[right].targetPosition - this->tableRow[i].tableEntry[left].targetPosition) / (right - left) * (left - j);
-          if (this->testNeighbors(i, j, tempValue)) {
+          if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
             this->tableRow[i].tableEntry[j].targetPosition = tempValue;
           }
         } else if (j > right) {
           // Extrapolate to the right
           tempValue = this->tableRow[i].tableEntry[right].targetPosition +
                       (this->tableRow[i].tableEntry[right].targetPosition - this->tableRow[i].tableEntry[left].targetPosition) / (right - left) * (j - right);
-          if (this->testNeighbors(i, j, tempValue)) {
+          if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
             this->tableRow[i].tableEntry[j].targetPosition = tempValue;
           }
         }
@@ -489,7 +472,7 @@ void PowerTable::extrapFillTable() {
       if (this->tableRow[i].tableEntry[left].targetPosition != INT16_MIN && this->tableRow[i].tableEntry[left - 1].targetPosition != INT16_MIN) {
         tempValue = this->tableRow[i].tableEntry[left].targetPosition +
                     (j - left) * (left > 0 ? this->tableRow[i].tableEntry[left].targetPosition - this->tableRow[i].tableEntry[left - 1].targetPosition : 1);
-        if (this->testNeighbors(i, j, tempValue)) {
+        if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
           this->tableRow[i].tableEntry[j].targetPosition = tempValue;
         }
       }
@@ -499,7 +482,7 @@ void PowerTable::extrapFillTable() {
         tempValue =
             this->tableRow[i].tableEntry[right].targetPosition -
             (right - j) * (right < POWERTABLE_WATT_SIZE - 1 ? this->tableRow[i].tableEntry[right + 1].targetPosition - this->tableRow[i].tableEntry[right].targetPosition : 1);
-        if (this->testNeighbors(i, j, tempValue)) {
+        if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
           this->tableRow[i].tableEntry[j].targetPosition = tempValue;
         }
       }
@@ -535,7 +518,7 @@ void PowerTable::extrapFillTable() {
               // Extrapolate to the left
               tempValue = this->tableRow[i].tableEntry[left].targetPosition -
                           (this->tableRow[i].tableEntry[right].targetPosition - this->tableRow[i].tableEntry[left].targetPosition) / (right - left) * (left - j);
-              if (this->testNeighbors(i, j, tempValue)) {
+              if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
                 this->tableRow[i].tableEntry[j].targetPosition = tempValue;
               }
 
@@ -543,7 +526,7 @@ void PowerTable::extrapFillTable() {
               // Extrapolate to the right
               tempValue = this->tableRow[i].tableEntry[right].targetPosition +
                           (this->tableRow[i].tableEntry[right].targetPosition - this->tableRow[i].tableEntry[left].targetPosition) / (right - left) * (j - right);
-              if (this->testNeighbors(i, j, tempValue)) {
+              if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
                 this->tableRow[i].tableEntry[j].targetPosition = tempValue;
               }
             }
@@ -552,7 +535,7 @@ void PowerTable::extrapFillTable() {
             if (this->tableRow[i].tableEntry[left].targetPosition != INT16_MIN && this->tableRow[i].tableEntry[left - 1].targetPosition != INT16_MIN) {
               tempValue = this->tableRow[i].tableEntry[left].targetPosition +
                           (j - left) * (left > 0 ? this->tableRow[i].tableEntry[left].targetPosition - this->tableRow[i].tableEntry[left - 1].targetPosition : 1);
-              if (this->testNeighbors(i, j, tempValue)) {
+              if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
                 this->tableRow[i].tableEntry[j].targetPosition = tempValue;
               }
             }
@@ -562,7 +545,7 @@ void PowerTable::extrapFillTable() {
               tempValue = this->tableRow[i].tableEntry[right].targetPosition -
                           (right - j) *
                               (right < POWERTABLE_WATT_SIZE - 1 ? this->tableRow[i].tableEntry[right + 1].targetPosition - this->tableRow[i].tableEntry[right].targetPosition : 1);
-              if (this->testNeighbors(i, j, tempValue)) {
+              if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
                 this->tableRow[i].tableEntry[j].targetPosition = tempValue;
               }
             }
@@ -590,14 +573,14 @@ void PowerTable::extrapFillTable() {
             // Extrapolate upwards
             tempValue = this->tableRow[top].tableEntry[j].targetPosition -
                         (this->tableRow[bottom].tableEntry[j].targetPosition - this->tableRow[top].tableEntry[j].targetPosition) / (bottom - top) * (top - i);
-            if (this->testNeighbors(i, j, tempValue)) {
+            if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
               this->tableRow[i].tableEntry[j].targetPosition = tempValue;
             }
           } else if (i > bottom) {
             // Extrapolate downwards
             tempValue = this->tableRow[bottom].tableEntry[j].targetPosition +
                         (this->tableRow[bottom].tableEntry[j].targetPosition - this->tableRow[top].tableEntry[j].targetPosition) / (bottom - top) * (i - bottom);
-            if (this->testNeighbors(i, j, tempValue)) {
+            if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
               this->tableRow[i].tableEntry[j].targetPosition = tempValue;
             }
           }
@@ -606,7 +589,7 @@ void PowerTable::extrapFillTable() {
           if (this->tableRow[top].tableEntry[j].targetPosition != INT16_MIN && this->tableRow[top - 1].tableEntry[j].targetPosition != INT16_MIN) {
             tempValue = this->tableRow[top].tableEntry[j].targetPosition +
                         (i - top) * (top > 0 ? this->tableRow[top].tableEntry[j].targetPosition - this->tableRow[top - 1].tableEntry[j].targetPosition : 1);
-            if (this->testNeighbors(i, j, tempValue)) {
+            if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
               this->tableRow[i].tableEntry[j].targetPosition = tempValue;
             } else {
             }
@@ -617,7 +600,7 @@ void PowerTable::extrapFillTable() {
             tempValue = this->tableRow[bottom].tableEntry[j].targetPosition -
                         (bottom - i) *
                             (bottom < POWERTABLE_CAD_SIZE - 1 ? this->tableRow[bottom + 1].tableEntry[j].targetPosition - this->tableRow[bottom].tableEntry[j].targetPosition : 1);
-            if (this->testNeighbors(i, j, tempValue)) {
+            if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
               this->tableRow[i].tableEntry[j].targetPosition = tempValue;
             }
           }
@@ -655,7 +638,7 @@ void PowerTable::extrapolateDiagonal() {
               ((this->tableRow[bottomRightRow].tableEntry[bottomRightCol].targetPosition - this->tableRow[topLeftRow].tableEntry[topLeftCol].targetPosition) * (j - topLeftCol)) /
                   (bottomRightCol - topLeftCol);
 
-          if (testNeighbors(i, j, tempValue)) {
+          if (testNeighbors(i, j, tempValue).allNeighborsPassed) {
             this->tableRow[i].tableEntry[j].targetPosition = tempValue;
           }
         }
@@ -683,7 +666,7 @@ void PowerTable::extrapolateDiagonal() {
                          (j - bottomLeftCol)) /
                             (topRightCol - bottomLeftCol);
 
-            if (testNeighbors(i, j, tempValue)) {
+            if (testNeighbors(i, j, tempValue).allNeighborsPassed) {
               this->tableRow[i].tableEntry[j].targetPosition = tempValue;
             }
           }
@@ -755,54 +738,41 @@ void PowerTable::newEntry(PowerBuffer& powerBuffer) {
   SS2K_LOG(POWERTABLE_LOG_TAG, "Averaged Entry: watts=%f, cad=%f, targetPosition=%d, (%d)(%d)", watts, cad, targetPosition, k, i);
 
   // Ensure k is within valid range
-  if (k < 0 || k >= POWERTABLE_CAD_SIZE) {
-    SS2K_LOG(POWERTABLE_LOG_TAG, "Cad index was out of range");
+  if ((k < 0) || (k > (POWERTABLE_CAD_SIZE - 1))) {
+    SS2K_LOG(POWERTABLE_LOG_TAG, "Cad index was out of range %d", k);
     return;
   }
   // Ensure i is within valid range
-  if (i < 0 || i >= POWERTABLE_WATT_SIZE) {
-    SS2K_LOG(POWERTABLE_LOG_TAG, "Watt index was out of range");
+  if (i < 0 || i > (POWERTABLE_WATT_SIZE - 1)) {
+    SS2K_LOG(POWERTABLE_LOG_TAG, "Watt index was out of range %d max %d", i, POWERTABLE_WATT_SIZE - 1);
     return;
   }
 
-  // Prohibit entries that are less than the number to the left
-  if (i > 0) {
-    for (int j = i - 1; j >= 0; j--) {
-      if (this->tableRow[k].tableEntry[j].targetPosition != INT16_MIN) {
-        if (this->tableRow[k].tableEntry[j].targetPosition >= targetPosition) {
-          SS2K_LOG(POWERTABLE_LOG_TAG, "Target Slot (%d)(%d)(%d)(%d) was less than previous (%d)(%d)(%d)", this->tableRow[k].tableEntry[j].targetPosition, k, i,
-                   (int)targetPosition, k, j, this->tableRow[k].tableEntry[j].targetPosition);
-          // downvote the blocking entry
-          this->tableRow[k].tableEntry[j].readings--;
-          // reset the blocking entry
-          if (this->tableRow[k].tableEntry[j].readings < 1) {
-            this->tableRow[k].tableEntry[j].targetPosition = INT16_MIN;
-          }
-          return;
-        }
-        break;  // Found a valid left neighbor
-      }
+  // Downvote out of position neighbors and discard entry if it doesn't match the logic of the table
+  TestResults testResults = this->testNeighbors(k, i, targetPosition);
+  if (!(testResults.bottomNeighbor.passedTest && testResults.topNeighbor.passedTest && testResults.rightNeighbor.passedTest && testResults.leftNeighbor.passedTest)) {
+    // test which bit fields didn't match
+    if (!testResults.leftNeighbor.passedTest) {
+      this->tableRow[testResults.leftNeighbor.i].tableEntry[testResults.leftNeighbor.j].readings--;
+      SS2K_LOG(POWERTABLE_LOG_TAG, "PT failed Left (%d)(%d)(%d), readings (%d)", testResults.leftNeighbor.i, testResults.leftNeighbor.j, testResults.leftNeighbor.targetPosition,
+               this->tableRow[testResults.leftNeighbor.i].tableEntry[testResults.leftNeighbor.j].readings);
     }
-  }
-
-  // Prohibit entries that are greater than the number to the right
-  if (i < POWERTABLE_WATT_SIZE - 1) {
-    for (int j = i + 1; j < POWERTABLE_WATT_SIZE; j++) {
-      if (this->tableRow[k].tableEntry[j].targetPosition != INT16_MIN) {
-        if (targetPosition >= this->tableRow[k].tableEntry[j].targetPosition) {
-          SS2K_LOG(POWERTABLE_LOG_TAG, "Target Slot (%d)(%d)(%d)(%d) was greater than next (%d)(%d)(%d)", this->tableRow[k].tableEntry[j].targetPosition, k, i, (int)targetPosition,
-                   k, j, this->tableRow[k].tableEntry[j].targetPosition);
-          // downvote the blocking entry
-          this->tableRow[k].tableEntry[j].readings--;
-          // if it's downvoted to 0, reset the blocking entry
-          if (this->tableRow[k].tableEntry[j].readings < 1) {
-            this->tableRow[k].tableEntry[j].targetPosition = INT16_MIN;
-          }
-          return;
-        }
-        break;  // Found a valid right neighbor
-      }
+    if (!testResults.rightNeighbor.passedTest) {
+      this->tableRow[testResults.rightNeighbor.i].tableEntry[testResults.rightNeighbor.j].readings--;
+      SS2K_LOG(POWERTABLE_LOG_TAG, "PT failed Right (%d)(%d)(%d), readings (%d)", testResults.rightNeighbor.i, testResults.rightNeighbor.j,
+               testResults.rightNeighbor.targetPosition, this->tableRow[testResults.rightNeighbor.i].tableEntry[testResults.rightNeighbor.j].readings);
     }
+    if (!testResults.topNeighbor.passedTest) {
+      this->tableRow[testResults.topNeighbor.i].tableEntry[testResults.topNeighbor.j].readings--;
+      SS2K_LOG(POWERTABLE_LOG_TAG, "PT failed Top (%d)(%d)(%d), readings (%d)", testResults.topNeighbor.i, testResults.topNeighbor.j, testResults.topNeighbor.targetPosition,
+               this->tableRow[testResults.topNeighbor.i].tableEntry[testResults.topNeighbor.j].readings);
+    }
+    if (!testResults.bottomNeighbor.passedTest) {
+      this->tableRow[testResults.bottomNeighbor.i].tableEntry[testResults.bottomNeighbor.j].readings--;
+      SS2K_LOG(POWERTABLE_LOG_TAG, "PT failed Bottom (%d)(%d)(%d), readings (%d)", testResults.bottomNeighbor.i, testResults.bottomNeighbor.j,
+               testResults.bottomNeighbor.targetPosition, this->tableRow[testResults.bottomNeighbor.i].tableEntry[testResults.bottomNeighbor.j].readings);
+    }
+    return;
   }
 
   // Update or create a new entry
@@ -882,7 +852,8 @@ bool PowerTable::_manageSaveState() {
         file.read((uint8_t*)&savedReadings, sizeof(savedReadings));
         // Does the saved file have a position that the active session has also recorded?
         // We start comparing at watt position 3 (j>2) because low resistance positions are notoriously unreliable.
-        if ((j > 2) && (this->tableRow[i].tableEntry[j].targetPosition != INT16_MIN) && (this->tableRow[i].tableEntry[j].readings > MINIMUM_RELIABLE_POSITIONS) && (savedReadings > 0)) {
+        if ((j > 2) && (this->tableRow[i].tableEntry[j].targetPosition != INT16_MIN) && (this->tableRow[i].tableEntry[j].readings > MINIMUM_RELIABLE_POSITIONS) &&
+            (savedReadings > 0)) {
           reliablePositions++;
         }
       }
@@ -918,7 +889,8 @@ bool PowerTable::_manageSaveState() {
         int8_t savedReadings        = 0;
         file.read((uint8_t*)&savedTargetPosition, sizeof(savedTargetPosition));
         file.read((uint8_t*)&savedReadings, sizeof(savedReadings));
-        if ((this->tableRow[i].tableEntry[j].targetPosition != INT16_MIN) && (savedTargetPosition != INT16_MIN) && (savedReadings > 0) && (this->tableRow[i].tableEntry[j].targetPosition != INT16_MIN) > MINIMUM_RELIABLE_POSITIONS) {
+        if ((this->tableRow[i].tableEntry[j].targetPosition != INT16_MIN) && (savedTargetPosition != INT16_MIN) && (savedReadings > 0) &&
+            (this->tableRow[i].tableEntry[j].targetPosition != INT16_MIN) > MINIMUM_RELIABLE_POSITIONS) {
           int offset = this->tableRow[i].tableEntry[j].targetPosition - savedTargetPosition;
           offsetDifferences.push_back(offset);
           SS2K_LOG(POWERTABLE_LOG_TAG, "offset %d", offset);

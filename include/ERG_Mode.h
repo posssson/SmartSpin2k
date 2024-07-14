@@ -60,6 +60,37 @@ class TableRow {
   TableEntry tableEntry[POWERTABLE_WATT_SIZE];
 };
 
+class TestResults {
+  struct Neighbor {
+    unsigned int found : 1;
+    unsigned int passedTest : 1;
+    int8_t i;
+    int8_t j;
+    int16_t targetPosition;
+
+    Neighbor() {
+      found          = false;
+      passedTest     = false;
+      i              = INT8_MIN;
+      j              = INT8_MIN;
+      targetPosition = INT16_MIN;
+    }
+  };
+
+ public:
+  Neighbor leftNeighbor;
+  Neighbor rightNeighbor;
+  Neighbor topNeighbor;
+  Neighbor bottomNeighbor;
+  unsigned int allNeighborsFound : 1;
+  unsigned int allNeighborsPassed : 1;
+
+  TestResults() {
+    allNeighborsFound  = false;
+    allNeighborsPassed = false;
+  }
+};
+
 class PowerTable {
  public:
   TableRow tableRow[POWERTABLE_CAD_SIZE];
@@ -94,7 +125,7 @@ class PowerTable {
  private:
   unsigned long lastSaveTime     = millis();
   bool _hasBeenLoadedThisSession = false;
-  bool testNeighbors(int i, int j, int value);
+  TestResults testNeighbors(int i, int j, int value);
   void fillTable();
   void extrapFillTable();
   void extrapolateDiagonal();
