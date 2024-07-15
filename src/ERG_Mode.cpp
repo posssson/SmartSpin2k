@@ -164,10 +164,12 @@ void PowerTable::setStepperMinMax() {
       // never set less than one shift below current incline.
       if ((_return >= rtConfig->getCurrentIncline()) && (rtConfig->watts.getValue() > userConfig->getMinWatts())) {
         _return = rtConfig->getCurrentIncline() - userConfig->getShiftStep();
+        SS2K_LOG(ERG_MODE_LOG_TAG, "Min Position too close to current incline: %d", _return);
       }
       // never set above max step.
-      if (_return + userConfig->getShiftStep() >= rtConfig->getMaxStep()) {
-        _return = rtConfig->getCurrentIncline() - userConfig->getShiftStep();
+      if (_return >= rtConfig->getMaxStep()) {
+        _return = rtConfig->getCurrentIncline() - userConfig->getShiftStep() * 2;
+        SS2K_LOG(ERG_MODE_LOG_TAG, "Min Position above max!: %d", _return);
       }
       rtConfig->setMinStep(_return);
       SS2K_LOG(ERG_MODE_LOG_TAG, "Min Position Set: %d", _return);
@@ -181,10 +183,12 @@ void PowerTable::setStepperMinMax() {
       // never set less than one shift above current incline.
       if ((_return <= rtConfig->getCurrentIncline()) && (rtConfig->watts.getValue() < userConfig->getMaxWatts())) {
         _return = rtConfig->getCurrentIncline() + userConfig->getShiftStep();
+         SS2K_LOG(ERG_MODE_LOG_TAG, "Max Position too close to current incline: %d", _return);
       }
       // never set below min step.
-      if (_return - userConfig->getShiftStep() <= rtConfig->getMinStep()) {
-        _return = rtConfig->getCurrentIncline() + userConfig->getShiftStep();
+      if (_return <= rtConfig->getMinStep()) {
+        _return = rtConfig->getCurrentIncline() + userConfig->getShiftStep() * 2;
+        SS2K_LOG(ERG_MODE_LOG_TAG, "Max Position below min!: %d", _return);
       }
       rtConfig->setMaxStep(_return);
       SS2K_LOG(ERG_MODE_LOG_TAG, "Max Position Set: %d", _return);
@@ -193,8 +197,8 @@ void PowerTable::setStepperMinMax() {
 }
 
 int PowerTable::lookup(int watts, int cad) {
-  int cadIndex  = (cad - MINIMUM_TABLE_CAD) / POWERTABLE_CAD_INCREMENT;
-  int wattIndex = watts / POWERTABLE_WATT_INCREMENT;
+  int cadIndex  = round(((float)cad - (float)MINIMUM_TABLE_CAD) / (float)POWERTABLE_CAD_INCREMENT);
+  int wattIndex = round((float)watts / (float)POWERTABLE_WATT_INCREMENT);
 
   // If request is outside table limits, perform linear extrapolation
   if (cad < MINIMUM_TABLE_CAD || cad > (MINIMUM_TABLE_CAD + (POWERTABLE_CAD_SIZE - 1) * POWERTABLE_CAD_INCREMENT) ||
@@ -221,7 +225,7 @@ int PowerTable::lookup(int watts, int cad) {
         int val1          = this->tableRow[extrapRow1].tableEntry[wattIndex].targetPosition;
         int val2          = this->tableRow[extrapRow2].tableEntry[wattIndex].targetPosition;
         extrapolatedValue = val1 + (val2 - val1) * (cad - cad1) / (cad2 - cad1);
-        SS2K_LOG(ERG_MODE_LOG_TAG, "Lookup Extrapolated %d from %d, %d", extrapolatedValue, val2, val1);
+        SS2K_LOG(ERG_MODE_LOG_TAG, "Lookup Extrapolated %d from %d, %d, for %dw %dcad", extrapolatedValue, val2, val1, watts, cad);
         return extrapolatedValue * 100;
       }
     }
@@ -229,7 +233,7 @@ int PowerTable::lookup(int watts, int cad) {
     // Extrapolation for watts out of bounds
     if (watts > (POWERTABLE_WATT_SIZE - 1) * POWERTABLE_WATT_INCREMENT) {
       int extrapCol1 = -1, extrapCol2 = -1;
-      for (int j = 0; j < POWERTABLE_WATT_SIZE; ++j) {
+      for (int j = POWERTABLE_WATT_SIZE - 1; j >= 0; j--) {
         if (this->tableRow[cadIndex].tableEntry[j].targetPosition != INT16_MIN) {
           if (extrapCol2 == -1) {
             extrapCol2 = j;
@@ -245,7 +249,7 @@ int PowerTable::lookup(int watts, int cad) {
         int val1          = this->tableRow[cadIndex].tableEntry[extrapCol1].targetPosition;
         int val2          = this->tableRow[cadIndex].tableEntry[extrapCol2].targetPosition;
         extrapolatedValue = val1 + (val2 - val1) * (watts - watts1) / (watts2 - watts1);
-        SS2K_LOG(ERG_MODE_LOG_TAG, "Lookup Extrapolated %d from %d, %d", extrapolatedValue, val2, val1);
+        SS2K_LOG(ERG_MODE_LOG_TAG, "Lookup Extrapolated %d from %d, %d, for %dw %dcad", extrapolatedValue, val2, val1, watts, cad);
         return extrapolatedValue * 100;
       }
     }
@@ -253,38 +257,65 @@ int PowerTable::lookup(int watts, int cad) {
     return INT16_MIN;
   }
 
+  // Edge cases out of the way, we should be able to interpolate.
   TestResults neighbors = testNeighbors(cadIndex, wattIndex, INT16_MIN);
-
-  // Check if any of the neighbors are missing
-  if (!neighbors.allNeighborsFound) {
-    if (this->tableRow[cadIndex].tableEntry[wattIndex].targetPosition != INT16_MIN) {
-      return this->tableRow[cadIndex].tableEntry[wattIndex].targetPosition * 100;
-    }
-    return INT16_MIN;
-  }
-
-  // Bilinear interpolation
-  double x1 = neighbors.leftNeighbor.i * POWERTABLE_WATT_INCREMENT;
-  double x2 = neighbors.rightNeighbor.i * POWERTABLE_WATT_INCREMENT;
-  double y1 = neighbors.topNeighbor.j * POWERTABLE_CAD_INCREMENT + MINIMUM_TABLE_CAD;
-  double y2 = neighbors.bottomNeighbor.j * POWERTABLE_CAD_INCREMENT + MINIMUM_TABLE_CAD;
+  double x1             = neighbors.leftNeighbor.j * POWERTABLE_WATT_INCREMENT;
+  double x2             = neighbors.rightNeighbor.j * POWERTABLE_WATT_INCREMENT;
+  double y1             = neighbors.topNeighbor.i * POWERTABLE_CAD_INCREMENT + MINIMUM_TABLE_CAD;
+  double y2             = neighbors.bottomNeighbor.i * POWERTABLE_CAD_INCREMENT + MINIMUM_TABLE_CAD;
 
   double Q11 = neighbors.leftNeighbor.targetPosition;
   double Q12 = neighbors.rightNeighbor.targetPosition;
   double Q21 = neighbors.topNeighbor.targetPosition;
   double Q22 = neighbors.bottomNeighbor.targetPosition;
 
-  double R1 = ((x2 - watts) / (x2 - x1)) * Q11 + ((watts - x1) / (x2 - x1)) * Q12;
-  double R2 = ((x2 - watts) / (x2 - x1)) * Q21 + ((watts - x1) / (x2 - x1)) * Q22;
-  double R  = ((y2 - cad) / (y2 - y1)) * R1 + ((cad - y1) / (y2 - y1)) * R2;
+  double R1 = INT16_MIN;
+  double R2 = INT16_MIN;
+  double R3 = INT16_MIN;
 
-  SS2K_LOG(ERG_MODE_LOG_TAG, "Lookup used neighbors L %d R %d U %d D %d", (int)Q11, (int)Q12, (int)Q21, (int)Q22);
+  SS2K_LOG(ERG_MODE_LOG_TAG, "Lookup debug %.0f X1 %.0f X2 %.0f Y1 %.0f Y2 %.0f", x1, x2, y1, y2);
+
+  if (neighbors.leftNeighbor.found && neighbors.rightNeighbor.found) {
+    // Watt result
+    R1 = Q11 + (((watts - x1) / (x2 - x1)) * (Q12 - Q11));
+    SS2K_LOG(ERG_MODE_LOG_TAG, "Lookup used neighbors L %.0f R %.0f R1 %.0f", Q11, Q12, R1);
+  }
+  if (neighbors.topNeighbor.found && neighbors.bottomNeighbor.found) {
+    // CAD result
+    R2 = Q21 + (((cad - y1) / (y2 - y1)) * (Q22 - Q21));
+    SS2K_LOG(ERG_MODE_LOG_TAG, "Lookup used neighbors U %.0f D %.0f R2 %.0f", Q21, Q22, R2);
+  }
+  // Do we have a position at this entry?
   if (this->tableRow[cadIndex].tableEntry[wattIndex].targetPosition != INT16_MIN) {
-    R = (this->tableRow[cadIndex].tableEntry[wattIndex].targetPosition + R) / 2;
-    SS2K_LOG(ERG_MODE_LOG_TAG, "And averaged %d", this->tableRow[cadIndex].tableEntry[wattIndex].targetPosition);
+    R3 = this->tableRow[cadIndex].tableEntry[wattIndex].targetPosition;
+    SS2K_LOG(ERG_MODE_LOG_TAG, "Lookup used actual %d R3 %.0f", this->tableRow[cadIndex].tableEntry[wattIndex].targetPosition, R3);
   }
 
-  return static_cast<int>(R * 100);
+  int sum   = 0;
+  int count = 0;
+
+  if (R1 != INT16_MIN) {
+    sum += R1;
+    count++;
+  }
+  if (R2 != INT16_MIN) {
+    sum += R2;
+    count++;
+  }
+  if (R3 != INT16_MIN) {
+    sum += R3;
+    count++;
+  }
+
+  if (count == 0) {
+    // Handle the case where all values are invalid.
+    return INT16_MIN;
+  }
+
+  int ret = (sum / count) * 100;
+  SS2K_LOG(ERG_MODE_LOG_TAG, "Lookup result: %dw %dcad %d",watts,cad, ret);
+  return ret;
+
 }
 
 // returns class of all neighbors that are found and within expected values.
@@ -365,7 +396,6 @@ TestResults PowerTable::testNeighbors(int i, int j, int testValue) {
   if (returnResult.bottomNeighbor.passedTest && returnResult.topNeighbor.passedTest && returnResult.rightNeighbor.passedTest && returnResult.leftNeighbor.passedTest) {
     returnResult.allNeighborsPassed = 1;
   }
-  SS2K_LOG("testResults", "%d | %d | %d", i, j, testValue);
   return returnResult;
 }
 
