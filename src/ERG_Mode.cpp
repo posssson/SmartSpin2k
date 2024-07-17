@@ -735,7 +735,7 @@ void PowerTable::newEntry(PowerBuffer& powerBuffer) {
   // these are floats so that we make sure division works correctly.
   float watts        = 0;
   float cad          = 0;
-  int targetPosition = 0;
+  float targetPosition = 0;
 
   // First, take the power buffer and average all of the samples together.
   int validEntries = 0;
@@ -767,7 +767,7 @@ void PowerTable::newEntry(PowerBuffer& powerBuffer) {
   // To start working on the PowerTable, we need to calculate position in the table for the new entry
   int i = round(watts / (float)POWERTABLE_WATT_INCREMENT);
   int k = round((cad - (float)MINIMUM_TABLE_CAD) / (float)POWERTABLE_CAD_INCREMENT);
-  SS2K_LOG(POWERTABLE_LOG_TAG, "Averaged Entry: watts=%f, cad=%f, targetPosition=%d, (%d)(%d)", watts, cad, targetPosition, k, i);
+  SS2K_LOG(POWERTABLE_LOG_TAG, "Averaged Entry: watts=%f, cad=%f, targetPosition=%f, (%d)(%d)", watts, cad, targetPosition, k, i);
 
   // Ensure k is within valid range
   if ((k < 0) || (k > (POWERTABLE_CAD_SIZE - 1))) {

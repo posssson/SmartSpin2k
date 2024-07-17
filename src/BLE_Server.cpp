@@ -13,6 +13,7 @@
 #include "BLE_Heart_Service.h"
 #include "BLE_Fitness_Machine_Service.h"
 #include "BLE_Custom_Characteristic.h"
+#include "BLE_Device_Information_Service.h"
 
 #include <ArduinoJson.h>
 #include <Constants.h>
@@ -30,6 +31,7 @@ BLE_Cycling_Power_Service cyclingPowerService;
 BLE_Heart_Service heartService;
 BLE_Fitness_Machine_Service fitnessMachineService;
 BLE_ss2kCustomCharacteristic ss2kCustomCharacteristic;
+BLE_Device_Information_Service deviceInformationService;
 
 void startBLEServer() {
   // Server Setup
@@ -43,7 +45,8 @@ void startBLEServer() {
   heartService.setupService(spinBLEServer.pServer, &chrCallbacks);
   fitnessMachineService.setupService(spinBLEServer.pServer, &chrCallbacks);
   ss2kCustomCharacteristic.setupService(spinBLEServer.pServer);
-
+  deviceInformationService.setupService(spinBLEServer.pServer);
+  
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   // const std::string fitnessData = {0b00000001, 0b00100000, 0b00000000};
   // pAdvertising->setServiceData(FITNESSMACHINESERVICE_UUID, fitnessData);
