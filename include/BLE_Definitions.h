@@ -7,11 +7,12 @@
 
 #pragma once
 
+//The .xml file is wrong, make sure to reference the actual FTMS .pdf
 struct FitnessMachineIndoorBikeDataFlags {
   enum Types : uint16_t {
     MoreDataBit                 = 1U << 0,
-    InstantaneousCadencePresent = 1U << 1,
-    AverageSpeedPresent         = 1U << 2,
+    AverageSpeedPresent         = 1U << 1,
+    InstantaneousCadencePresent = 1U << 2,    
     AverageCadencePresent       = 1U << 3,
     TotalDistancePresent        = 1U << 4,
     ResistanceLevelPresent      = 1U << 5,
