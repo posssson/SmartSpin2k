@@ -10,8 +10,8 @@
 struct FitnessMachineIndoorBikeDataFlags {
   enum Types : uint16_t {
     MoreDataBit                 = 1U << 0,
-    AverageSpeedPresent         = 1U << 1,
-    InstantaneousCadencePresent = 1U << 2,
+    InstantaneousCadencePresent = 1U << 1,
+    AverageSpeedPresent         = 1U << 2,
     AverageCadencePresent       = 1U << 3,
     TotalDistancePresent        = 1U << 4,
     ResistanceLevelPresent      = 1U << 5,
@@ -22,7 +22,6 @@ struct FitnessMachineIndoorBikeDataFlags {
     MetabolicEquivalentPresent  = 1U << 10,
     ElapsedTimePresent          = 1U << 11,
     RemainingTimePresent        = 1U << 12
-
   };
 };
 

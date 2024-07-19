@@ -101,7 +101,7 @@ void BLE_Fitness_Machine_Service::update() {
   char logBuf[kLogBufCapacity];
   const size_t ftmsIndoorBikeDataLength = sizeof(ftmsIndoorBikeData) / sizeof(ftmsIndoorBikeData[0]);
   logCharacteristic(logBuf, kLogBufCapacity, ftmsIndoorBikeData, ftmsIndoorBikeDataLength, FITNESSMACHINESERVICE_UUID, fitnessMachineIndoorBikeData->getUUID(),
-                    "FTMS(IBD)[ HR(%d) CD(%.2f) PW(%d) SD(%.2f) ]", hr % 1000, fmodf(cadRaw, 1000.0), watts % 10000, fmodf(speedFtmsUnit / 100, 1000.0));
+                    "FTMS(IBD)[ HR(%d) CD(%.2f) PW(%d) SD(%.2f) ]", hr % 1000, fmodf(cadRaw, 1000.0), watts % 10000, fmodf((float)speedFtmsUnit / 100.0, 1000.0));
 }
 
 // The things that happen when we receive a FitnessMachineControlPointProcedure from a Client.
