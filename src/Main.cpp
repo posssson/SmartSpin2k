@@ -255,7 +255,7 @@ void SS2K::maintenanceLoop(void *pvParameters) {
       static double _oldTargetIncline = 0;
       static int _oldClientCount      = 0;
       if (_oldHR == rtConfig->hr.getValue() && _oldWatts == rtConfig->watts.getValue() && _oldTargetIncline == rtConfig->getTargetIncline() &&
-          _oldClientCount == NimBLEDevice::getServer()->getConnectedCount()) {
+          NimBLEDevice::getServer()->getConnectedCount() == 0) {
         // Inactivity detected
         if (((millis() - rebootTimer) > 1800000)) {
           // Timer expired
