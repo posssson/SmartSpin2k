@@ -8,13 +8,19 @@
 #include "ERG_Mode.h"
 #include "SS2KLog.h"
 #include "Main.h"
+#include "BLE_Custom_Characteristic.h"
 #include <LittleFS.h>
-#include <ArduinoJson.h>
+#include <vector>
+#include <algorithm>
+#include <cmath>
+#include <limits>
+#include <numeric>
+
 TaskHandle_t ErgTask;
-TorqueTable torqueTable;
+PowerTable* powerTable = new PowerTable;
 
 // Create a torque table representing 0w-1000w in 50w increments.
-// i.e. torqueTable[1] corresponds to the incline required for 50w. torqueTable[2] is the incline required for 100w and so on.
+// i.e. powerTable[1] corresponds to the incline required for 50w. powerTable[2] is the incline required for 100w and so on.
 
 void setupERG() {
   SS2K_LOG(ERG_MODE_LOG_TAG, "Starting ERG Mode task...");
@@ -30,8 +36,8 @@ void setupERG() {
 }
 
 void ergTaskLoop(void* pvParameters) {
-  ErgMode ergMode = ErgMode(&torqueTable);
-  TorqueBuffer torqueBuffer;
+  ErgMode ergMode;
+  PowerBuffer powerBuffer;
 
   ergMode._writeLogHeader();
   bool isInErgMode            = false;
@@ -44,7 +50,7 @@ void ergTaskLoop(void* pvParameters) {
     while (ss2k->isUpdating) {
       vTaskDelay(100);
     }
-    
+
     vTaskDelay(ERG_MODE_DELAY / portTICK_PERIOD_MS);
 
     hasConnectedPowerMeter = spinBLEClient.connectedPM;
@@ -54,7 +60,7 @@ void ergTaskLoop(void* pvParameters) {
     }
 
     // add values to torque table
-    torqueTable.processTorqueValue(torqueBuffer, rtConfig->cad.getValue(), rtConfig->watts);
+    powerTable->processPowerValue(powerBuffer, rtConfig->cad.getValue(), rtConfig->watts);
 
     // compute ERG
     if ((rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetPower) && (hasConnectedPowerMeter || simulationRunning)) {
@@ -69,12 +75,12 @@ void ergTaskLoop(void* pvParameters) {
     // Set Min and Max Stepper positions
     if (loopCounter > 50) {
       loopCounter = 0;
-      torqueTable.setStepperMinMax();
+      powerTable->setStepperMinMax();
     }
 
-    // Check for saved torque table if we have < 3 positions calculated. If so, load saved torque table.
-
-    // Save Torque table if we currently have more positions calculated than the saved version.
+    if (ss2k->resetPowerTableFlag) {
+      powerTable->reset();
+    }
 
     loopCounter++;
 
@@ -84,59 +90,63 @@ void ergTaskLoop(void* pvParameters) {
   }
 }
 
-void TorqueBuffer::set(int i) {
-  this->torqueEntry[i].readings       = 1;
-  this->torqueEntry[i].torque         = _wattsToTorque(rtConfig->watts.getValue(), rtConfig->cad.getValue());
-  this->torqueEntry[i].targetPosition = rtConfig->getCurrentIncline();
+void PowerBuffer::set(int i) {
+  this->powerEntry[i].readings++;
+  this->powerEntry[i].watts          = rtConfig->watts.getValue();
+  this->powerEntry[i].cad            = rtConfig->cad.getValue();
+  this->powerEntry[i].targetPosition = rtConfig->getCurrentIncline() / 100;  // dividing by 100 to save memory.
 }
 
-void TorqueBuffer::reset() {
-  for (int i = 0; i < TORQUE_SAMPLES; i++) {
-    this->torqueEntry[i].readings       = 0;
-    this->torqueEntry[i].torque         = 0;
-    this->torqueEntry[i].targetPosition = 0;
+void PowerBuffer::reset() {
+  for (int i = 0; i < POWER_SAMPLES; i++) {
+    this->powerEntry[i].readings       = 0;
+    this->powerEntry[i].cad            = 0;
+    this->powerEntry[i].watts          = 0;
+    this->powerEntry[i].targetPosition = 0;
   }
 }
 
 // return the number of entries with readings.
-int TorqueBuffer::getReadings() {
+int PowerBuffer::getReadings() {
   int ret = 0;
-  for (int i = 0; i < TORQUE_SAMPLES; i++) {
-    if (this->torqueEntry[i].readings != 0) {
+  for (int i = 0; i < POWER_SAMPLES; i++) {
+    if (this->powerEntry[i].readings != 0) {
       ret++;
     }
   }
   return ret;
 }
 
-void TorqueTable::processTorqueValue(TorqueBuffer& torqueBuffer, int cadence, Measurement watts) {
-  float torque = _wattsToTorque(watts.getValue(), cadence);
-  if ((cadence >= (NORMAL_CAD - 20)) && (cadence <= (NORMAL_CAD + 20)) && (watts.getValue() > 10) && (torque < (TORQUETABLE_SIZE * TORQUETABLE_INCREMENT))) {
-    if (torqueBuffer.torqueEntry[0].readings == 0) {
+void PowerTable::processPowerValue(PowerBuffer& powerBuffer, int cadence, Measurement watts) {
+  if ((cadence >= (MINIMUM_TABLE_CAD - (POWERTABLE_CAD_INCREMENT / 2))) &&
+      (cadence <= (MINIMUM_TABLE_CAD + (POWERTABLE_CAD_INCREMENT * POWERTABLE_CAD_SIZE) - (POWERTABLE_CAD_SIZE / 2))) && (watts.getValue() > 10) &&
+      (watts.getValue() < (POWERTABLE_WATT_SIZE * POWERTABLE_WATT_INCREMENT))) {
+    if (powerBuffer.powerEntry[0].readings == 0) {
       // Take Initial reading
-      torqueBuffer.set(0);
+      powerBuffer.set(0);
       // Check that reading is within 1/2 of the initial reading
-    } else if (abs(torqueBuffer.torqueEntry[0].torque - torque) < (TORQUETABLE_INCREMENT / 2)) {
-      for (int i = 1; i < TORQUE_SAMPLES; i++) {
-        if (torqueBuffer.torqueEntry[i].readings == 0) {
-          torqueBuffer.set(i);  // Add additional readings to the buffer.
+    } else if ((abs(powerBuffer.powerEntry[0].watts - watts.getValue()) < (POWERTABLE_WATT_INCREMENT / 2)) &&
+               (abs(powerBuffer.powerEntry[0].cad - cadence) < (POWERTABLE_CAD_INCREMENT))) {
+      for (int i = 1; i < POWER_SAMPLES; i++) {
+        if (powerBuffer.powerEntry[i].readings == 0) {
+          powerBuffer.set(i);  // Add additional readings to the buffer.
           break;
         }
       }
-      if (torqueBuffer.torqueEntry[TORQUE_SAMPLES - 1].readings == 1) {  // If buffer is full, create a new table entry and clear the buffer.
-        this->newEntry(torqueBuffer);
+      if (powerBuffer.powerEntry[POWER_SAMPLES - 1].readings == 1) {  // If buffer is full, create a new table entry and clear the buffer.
+        this->newEntry(powerBuffer);
         this->toLog();
         this->_manageSaveState();
-        torqueBuffer.reset();
+        powerBuffer.reset();
       }
     } else {  // Reading was outside the range - clear the buffer and start over.
-      torqueBuffer.reset();
+      powerBuffer.reset();
     }
   }
 }
 
 // Set min / max stepper position
-void TorqueTable::setStepperMinMax() {
+void PowerTable::setStepperMinMax() {
   int _return = RETURN_ERROR;
 
   // if the FTMS device reports resistance feedback, skip estimating min_max
@@ -148,12 +158,18 @@ void TorqueTable::setStepperMinMax() {
   }
 
   int minBreakWatts = userConfig->getMinWatts();
-  if (minBreakWatts > 0) {
+  if (minBreakWatts > 1) {
     _return = this->lookup(minBreakWatts, NORMAL_CAD);
     if (_return != RETURN_ERROR) {
       // never set less than one shift below current incline.
       if ((_return >= rtConfig->getCurrentIncline()) && (rtConfig->watts.getValue() > userConfig->getMinWatts())) {
         _return = rtConfig->getCurrentIncline() - userConfig->getShiftStep();
+        SS2K_LOG(ERG_MODE_LOG_TAG, "Min Position too close to current incline: %d", _return);
+      }
+      // never set above max step.
+      if (_return >= rtConfig->getMaxStep()) {
+        _return = rtConfig->getCurrentIncline() - userConfig->getShiftStep() * 2;
+        SS2K_LOG(ERG_MODE_LOG_TAG, "Min Position above max!: %d", _return);
       }
       rtConfig->setMinStep(_return);
       SS2K_LOG(ERG_MODE_LOG_TAG, "Min Position Set: %d", _return);
@@ -161,12 +177,18 @@ void TorqueTable::setStepperMinMax() {
   }
 
   int maxBreakWatts = userConfig->getMaxWatts();
-  if (maxBreakWatts > 0) {
+  if (maxBreakWatts > 1) {
     _return = this->lookup(maxBreakWatts, NORMAL_CAD);
     if (_return != RETURN_ERROR) {
       // never set less than one shift above current incline.
       if ((_return <= rtConfig->getCurrentIncline()) && (rtConfig->watts.getValue() < userConfig->getMaxWatts())) {
         _return = rtConfig->getCurrentIncline() + userConfig->getShiftStep();
+         SS2K_LOG(ERG_MODE_LOG_TAG, "Max Position too close to current incline: %d", _return);
+      }
+      // never set below min step.
+      if (_return <= rtConfig->getMinStep()) {
+        _return = rtConfig->getCurrentIncline() + userConfig->getShiftStep() * 2;
+        SS2K_LOG(ERG_MODE_LOG_TAG, "Max Position below min!: %d", _return);
       }
       rtConfig->setMaxStep(_return);
       SS2K_LOG(ERG_MODE_LOG_TAG, "Max Position Set: %d", _return);
@@ -174,360 +196,874 @@ void TorqueTable::setStepperMinMax() {
   }
 }
 
-// Accepts new data into the table and averages input by number of readings in the torque entry.
-void TorqueTable::newEntry(TorqueBuffer& torqueBuffer) {
-  float torque           = 0;
-  int32_t targetPosition = 0;
+int PowerTable::lookup(int watts, int cad) {
+  int cadIndex  = round(((float)cad - (float)MINIMUM_TABLE_CAD) / (float)POWERTABLE_CAD_INCREMENT);
+  int wattIndex = round((float)watts / (float)POWERTABLE_WATT_INCREMENT);
 
-  for (int i = 0; i < TORQUE_SAMPLES; i++) {
-    if (torqueBuffer.torqueEntry[i].readings == 0) {
-      // Stop when buffer is empty
-      break;
-    }
+  // If request is outside table limits, perform linear extrapolation
+  if (cad < MINIMUM_TABLE_CAD || cad > (MINIMUM_TABLE_CAD + (POWERTABLE_CAD_SIZE - 1) * POWERTABLE_CAD_INCREMENT) ||
+      watts > (POWERTABLE_WATT_SIZE - 1) * POWERTABLE_WATT_INCREMENT) {
+    // Perform linear extrapolation based on existing data
+    int extrapolatedValue = INT16_MIN;
 
-    if (i == 0) {  // first loop -> assign values
-      torque         = torqueBuffer.torqueEntry[i].torque;
-      targetPosition = torqueBuffer.torqueEntry[i].targetPosition;
-      continue;  // skip averaging below
-    }
-#ifdef DEBUG_TORQUETABLE
-    SS2K_LOGW(TORQUETABLE_LOG_TAG, "Buf[%d](%dw)(%dpos)(%dcad)", i, torqueBuffer.torqueEntry[i].torque, torqueBuffer.torqueEntry[i].targetPosition,
-              torqueBuffer.torqueEntry[i].cad);
-#endif
-    // average each entry individually.
-    torque         = (torque + torqueBuffer.torqueEntry[i].torque) / 2;
-    targetPosition = (targetPosition + torqueBuffer.torqueEntry[i].targetPosition) / 2;
-  }
-#ifdef DEBUG_TORQUETABLE
-  SS2K_LOG(TORQUETABLE_LOG_TAG, "Avg:(%dw)(%dpos)(%dcad)", (int)torque, targetPosition, cad);
-#endif
-  // Done with torqueBuffer
-  // To start working on the TorqueTable, we need to calculate position in the table for the new entry
-  int i = round(torque / TORQUETABLE_INCREMENT);
-
-  // Prohibit entries that are less than the number to the left
-  if (i > 0) {
-    for (int j = i - 1; j > 0; j--) {
-      if ((this->torqueEntry[j].targetPosition != 0) && (this->torqueEntry[j].targetPosition >= targetPosition)) {
-        SS2K_LOG(TORQUETABLE_LOG_TAG, "Target Slot (%dn.M)(%d)(%d) was less than previous (%d)(%d)", (int)torque, i, targetPosition, j, this->torqueEntry[j].targetPosition);
-        this->torqueEntry[j].readings--;
-        if (this->torqueEntry[j].readings <= 1) {  // Wipe The slot
-          this->torqueEntry[j].targetPosition = 0;
-          this->torqueEntry[j].torque         = 0;
-          this->torqueEntry[j].readings       = 0;
-        }
-        return;
-      }
-    }
-  }
-  // Prohibit entries that are greater than the number to the right
-  if (i < TORQUETABLE_SIZE) {
-    for (int j = i + 1; j < TORQUETABLE_SIZE; j++) {
-      if ((this->torqueEntry[j].targetPosition != 0) && (targetPosition >= this->torqueEntry[j].targetPosition)) {
-        SS2K_LOG(TORQUETABLE_LOG_TAG, "Target Slot (%dn.M)(%d)(%d) was greater than next (%d)(%d)", (int)torque, i, targetPosition, j, this->torqueEntry[j].targetPosition);
-        this->torqueEntry[j].readings--;
-        if (this->torqueEntry[j].readings <= 1) {  // Wipe The slot
-          this->torqueEntry[j].targetPosition = 0;
-          this->torqueEntry[j].torque         = 0;
-          this->torqueEntry[j].readings       = 0;
-        }
-        return;
-      }
-    }
-  }
-
-  if (this->torqueEntry[i].readings == 0) {  // if first reading in this entry
-    this->torqueEntry[i].torque         = torque;
-    this->torqueEntry[i].targetPosition = targetPosition;
-    this->torqueEntry[i].readings       = 1;
-  } else {  // Average and update the readings.
-    this->torqueEntry[i].torque         = (torque + (this->torqueEntry[i].torque * this->torqueEntry[i].readings)) / (this->torqueEntry[i].readings + 1.0);
-    this->torqueEntry[i].targetPosition = (targetPosition + (this->torqueEntry[i].targetPosition * this->torqueEntry[i].readings)) / (this->torqueEntry[i].readings + 1.0);
-    this->torqueEntry[i].readings++;
-    if (this->torqueEntry[i].readings > TORQUE_SAMPLES * 2) {
-      this->torqueEntry[i].readings = TORQUE_SAMPLES * 2;  // keep from diluting recent readings too far.
-    }
-  }
-}
-
-// looks up an incline for the requested watts and cadence and interpolates the result.
-// Returns -99 if no entry matched.
-int32_t TorqueTable::lookup(int watts, int cad) {
-  struct entry {
-    float torque;
-    int32_t targetPosition;
-  };
-
-  float torque = _wattsToTorque(watts, cad);
-
-  int i = round(torque / TORQUETABLE_INCREMENT);  // find the closest entry
-  // Cap i to max table size.
-  if (i > TORQUETABLE_SIZE) {
-    i = TORQUETABLE_SIZE - 1;
-  }
-  float scale   = torque / TORQUETABLE_INCREMENT - i;  // Should we look at the next higher or next lower index for comparison?
-  int indexPair = -1;  // The next closest index with data for interpolation                                                                           // The next closest index
-                       // with data for interpolation
-  entry above;
-  entry below;
-  above.torque = 0;
-  below.torque = 0;
-
-  if (this->torqueEntry[i].readings == 0) {  // If matching entry is empty, find the next closest index with data
-    for (int x = 1; x < TORQUETABLE_SIZE; x++) {
-      if (i + x < TORQUETABLE_SIZE) {
-        if (this->torqueEntry[i + x].readings > 0) {
-          i += x;
-          break;
-        }
-      }
-      if (i - x >= 0) {
-        if (this->torqueEntry[i - x].readings > 0) {
-          i -= x;
-          break;
-        }
-      }
-      if ((i - x <= 0) && (i + x >= TORQUETABLE_SIZE)) {
-        SS2K_LOG(ERG_MODE_LOG_TAG, "No data found in Torque Table.");
-        return RETURN_ERROR;
-      }
-    }
-  }
-  if (scale > 0) {  // select the paired element (preferably) above the entry for interpolation
-    for (int x = 1; x < TORQUETABLE_SIZE; x++) {
-      if (i + x < TORQUETABLE_SIZE) {
-        if (this->torqueEntry[i + x].readings > 0) {
-          indexPair = i + x;
-          break;
-        }
-      }
-      if (i - x >= 0) {
-        if (this->torqueEntry[i - x].readings > 0) {
-          indexPair = i - x;
-          break;
-        }
-      }
-    }
-  } else if (scale <= 0) {  // select the paired element (preferably) below the entry for interpolation
-    for (int x = 1; x < TORQUETABLE_SIZE; x++) {
-      if (i + x < TORQUETABLE_SIZE) {
-        if (this->torqueEntry[i + x].readings > 0) {
-          indexPair = i + x;
-          break;
-        }
-      }
-      if (i - x >= 0) {
-        if (this->torqueEntry[i - x].readings > 0) {
-          indexPair = i - x;
-          break;
-        }
-      }
-    }
-  }
-  SS2K_LOG(ERG_MODE_LOG_TAG, "TorqueTable pairs [%d][%d]", i, indexPair);
-  if (indexPair != -1) {
-    if (i > indexPair) {
-      below.torque         = this->torqueEntry[indexPair].torque;
-      below.targetPosition = this->torqueEntry[indexPair].targetPosition;
-      above.torque         = this->torqueEntry[i].torque;
-      above.targetPosition = this->torqueEntry[i].targetPosition;
-    } else if (i < indexPair) {
-      below.torque         = this->torqueEntry[i].torque;
-      below.targetPosition = this->torqueEntry[i].targetPosition;
-      above.torque         = this->torqueEntry[indexPair].torque;
-      above.targetPosition = this->torqueEntry[indexPair].targetPosition;
-    }
-    if (below.targetPosition >= above.targetPosition) {
-      SS2K_LOG(ERG_MODE_LOG_TAG, "Reverse/No Delta in Torque Table");
-      return (RETURN_ERROR);
-    }
-  } else {  // Not enough data
-    SS2K_LOG(ERG_MODE_LOG_TAG, "No pair in torque table");
-    return (RETURN_ERROR);
-  }
-
-  if (!below.torque || !above.torque) {  // We should never get here. This is a failsafe vv
-    SS2K_LOG(ERG_MODE_LOG_TAG, "One of the pair was zero. Calculation rejected.");
-    return (RETURN_ERROR);
-  }
-
-  // actual interpolation
-  int32_t rTargetPosition = below.targetPosition + ((torque - below.torque) / (above.torque - below.torque)) * (above.targetPosition - below.targetPosition);
-
-  return rTargetPosition;
-}
-
-// checks Torque Table for applicability of loading and if so, replaces the one in memory with the one from the filesystem.
-bool TorqueTable::_manageSaveState() {
-  // Open file for writing
-  // SS2K_LOG(CONFIG_LOG_TAG, "Reading File: %s", TORQUE_TABLE_FILENAME);
-  File file = LittleFS.open(TORQUE_TABLE_FILENAME, FILE_READ);
-  if (!file) {
-    SS2K_LOG(TORQUETABLE_LOG_TAG, "Failed to Load Torque Table.");
-    file.close();
-    this->_save();
-    return false;
-  }
-
-  // SS2K_LOG(CONFIG_LOG_TAG, file.readString().c_str());
-
-  // Allocate a temporary JsonDocument
-  // Don't forget to change the capacity to match your requirements.
-  // Use arduinojson.org/assistant to compute the capacity.
-  StaticJsonDocument<1000> doc;
-
-  // Deserialize the JSON document
-  DeserializationError error = deserializeJson(doc, file);
-  if (error) {
-    SS2K_LOG(TORQUETABLE_LOG_TAG, "Failed to deserialize.");
-    doc = nullptr;
-    file.close();
-    this->_save();
-    return false;
-  }
-
-  // Is the filesystem version better quality?
-  int currentSize = this->getEntries();
-  int loadSize    = doc["size"];
-
-  if (loadSize < currentSize) {
-    SS2K_LOG(TORQUETABLE_LOG_TAG, "Saving new");
-    file.close();
-    doc = nullptr;
-    this->_save();
-    _hasBeenLoadedThisSession = true;  // updating because the current data is better
-    return true;
-
-  } else if (_hasBeenLoadedThisSession == true) {  // Data was updated. Do this only occasionally to prevent wearing out flash.
-    if ((millis() - lastSaveTime) > TORQUE_TABLE_SAVE_INTERVAL) {
-      SS2K_LOG(TORQUETABLE_LOG_TAG, "Autosave");
-      file.close();
-      doc = nullptr;
-      this->_save();
-      return true;
-    }
-  }
-
-  if ((loadSize > 0) && (!_hasBeenLoadedThisSession)) {
-    // check if position 3 (the most accurate in my testing) is filled on both tables and then calculate the offset
-    for (int j = MOST_DEPENDABLE_TORQUE_ENTRY * 3; j >= MOST_DEPENDABLE_TORQUE_ENTRY; j--) {
-      String t = "t";
-      t += std::to_string(j).c_str();
-      String p = "p";
-      p += std::to_string(j).c_str();
-
-      if ((this->torqueEntry[j].torque > 0) && (this->torqueEntry[j].readings >= 3) && ((int32_t)doc[t] > 0)) {
-        int32_t offset = (int32_t)doc[p] - this->torqueEntry[j].targetPosition;
-        // Actually load the data
-        for (int i = 0; i < TORQUETABLE_SIZE; i++) {
-          t = "t";
-          t += std::to_string(i).c_str();
-          int valid = doc[t];
-          if (valid > 0) {
-            p = "p";
-            p += std::to_string(i).c_str();
-            this->torqueEntry[i].torque         = doc[t];
-            this->torqueEntry[i].targetPosition = (int32_t)(doc[p]) - offset;
-            SS2K_LOG(TORQUETABLE_LOG_TAG, "Loaded Table");
+    // Extrapolation for cadence out of bounds
+    if (cad < MINIMUM_TABLE_CAD || cad > (MINIMUM_TABLE_CAD + (POWERTABLE_CAD_SIZE - 1) * POWERTABLE_CAD_INCREMENT)) {
+      int extrapRow1 = -1, extrapRow2 = -1;
+      for (int i = 0; i < POWERTABLE_CAD_SIZE; ++i) {
+        if (this->tableRow[i].tableEntry[wattIndex].targetPosition != INT16_MIN) {
+          if (extrapRow1 == -1) {
+            extrapRow1 = i;
+          } else {
+            extrapRow2 = i;
+            break;
           }
         }
-        _hasBeenLoadedThisSession = true;
+      }
+      if (extrapRow1 != -1 && extrapRow2 != -1) {
+        int cad1          = extrapRow1 * POWERTABLE_CAD_INCREMENT + MINIMUM_TABLE_CAD;
+        int cad2          = extrapRow2 * POWERTABLE_CAD_INCREMENT + MINIMUM_TABLE_CAD;
+        int val1          = this->tableRow[extrapRow1].tableEntry[wattIndex].targetPosition;
+        int val2          = this->tableRow[extrapRow2].tableEntry[wattIndex].targetPosition;
+        extrapolatedValue = val1 + (val2 - val1) * (cad - cad1) / (cad2 - cad1);
+        SS2K_LOG(ERG_MODE_LOG_TAG, "Lookup Extrapolated %d from %d, %d, for %dw %dcad", extrapolatedValue, val2, val1, watts, cad);
+        return extrapolatedValue * 100;
+      }
+    }
+
+    // Extrapolation for watts out of bounds
+    if (watts > (POWERTABLE_WATT_SIZE - 1) * POWERTABLE_WATT_INCREMENT) {
+      int extrapCol1 = -1, extrapCol2 = -1;
+      for (int j = POWERTABLE_WATT_SIZE - 1; j >= 0; j--) {
+        if (this->tableRow[cadIndex].tableEntry[j].targetPosition != INT16_MIN) {
+          if (extrapCol2 == -1) {
+            extrapCol2 = j;
+          } else {
+            extrapCol1 = j;
+            break;
+          }
+        }
+      }
+      if (extrapCol1 != -1 && extrapCol2 != -1) {
+        int watts1        = extrapCol1 * POWERTABLE_WATT_INCREMENT;
+        int watts2        = extrapCol2 * POWERTABLE_WATT_INCREMENT;
+        int val1          = this->tableRow[cadIndex].tableEntry[extrapCol1].targetPosition;
+        int val2          = this->tableRow[cadIndex].tableEntry[extrapCol2].targetPosition;
+        extrapolatedValue = val1 + (val2 - val1) * (watts - watts1) / (watts2 - watts1);
+        SS2K_LOG(ERG_MODE_LOG_TAG, "Lookup Extrapolated %d from %d, %d, for %dw %dcad", extrapolatedValue, val2, val1, watts, cad);
+        return extrapolatedValue * 100;
+      }
+    }
+    // Not enough data.
+    return INT16_MIN;
+  }
+
+  // Edge cases out of the way, we should be able to interpolate.
+  TestResults neighbors = testNeighbors(cadIndex, wattIndex, INT16_MIN);
+  double x1             = neighbors.leftNeighbor.j * POWERTABLE_WATT_INCREMENT;
+  double x2             = neighbors.rightNeighbor.j * POWERTABLE_WATT_INCREMENT;
+  double y1             = neighbors.topNeighbor.i * POWERTABLE_CAD_INCREMENT + MINIMUM_TABLE_CAD;
+  double y2             = neighbors.bottomNeighbor.i * POWERTABLE_CAD_INCREMENT + MINIMUM_TABLE_CAD;
+
+  double Q11 = neighbors.leftNeighbor.targetPosition;
+  double Q12 = neighbors.rightNeighbor.targetPosition;
+  double Q21 = neighbors.topNeighbor.targetPosition;
+  double Q22 = neighbors.bottomNeighbor.targetPosition;
+
+  double R1 = INT16_MIN;
+  double R2 = INT16_MIN;
+  double R3 = INT16_MIN;
+
+  SS2K_LOG(ERG_MODE_LOG_TAG, "Lookup debug %.0f X1 %.0f X2 %.0f Y1 %.0f Y2 %.0f", x1, x2, y1, y2);
+
+  if (neighbors.leftNeighbor.found && neighbors.rightNeighbor.found) {
+    // Watt result
+    R1 = Q11 + (((watts - x1) / (x2 - x1)) * (Q12 - Q11));
+    SS2K_LOG(ERG_MODE_LOG_TAG, "Lookup used neighbors L %.0f R %.0f R1 %.0f", Q11, Q12, R1);
+  }
+  if (neighbors.topNeighbor.found && neighbors.bottomNeighbor.found) {
+    // CAD result
+    R2 = Q21 + (((cad - y1) / (y2 - y1)) * (Q22 - Q21));
+    SS2K_LOG(ERG_MODE_LOG_TAG, "Lookup used neighbors U %.0f D %.0f R2 %.0f", Q21, Q22, R2);
+  }
+  // Do we have a position at this entry?
+  if (this->tableRow[cadIndex].tableEntry[wattIndex].targetPosition != INT16_MIN) {
+    R3 = this->tableRow[cadIndex].tableEntry[wattIndex].targetPosition;
+    SS2K_LOG(ERG_MODE_LOG_TAG, "Lookup used actual %d R3 %.0f", this->tableRow[cadIndex].tableEntry[wattIndex].targetPosition, R3);
+  }
+
+  int sum   = 0;
+  int count = 0;
+
+  if (R1 != INT16_MIN) {
+    sum += R1;
+    count++;
+  }
+  if (R2 != INT16_MIN) {
+    sum += R2;
+    count++;
+  }
+  if (R3 != INT16_MIN) {
+    sum += R3;
+    count++;
+  }
+
+  if (count == 0) {
+    // Handle the case where all values are invalid.
+    return INT16_MIN;
+  }
+
+  int ret = (sum / count) * 100;
+  SS2K_LOG(ERG_MODE_LOG_TAG, "Lookup result: %dw %dcad %d",watts,cad, ret);
+  return ret;
+
+}
+
+// returns class of all neighbors that are found and within expected values.
+TestResults PowerTable::testNeighbors(int i, int j, int testValue) {
+  TestResults returnResult;
+  // Get the neighbors
+  // Check left neighbor
+  if (j > 0) {
+    for (int left = j - 1; left >= 0; --left) {
+      if (this->tableRow[i].tableEntry[left].targetPosition != INT16_MIN) {
+        returnResult.leftNeighbor.targetPosition = this->tableRow[i].tableEntry[left].targetPosition;
+        returnResult.leftNeighbor.i              = i;
+        returnResult.leftNeighbor.j              = left;
+        returnResult.leftNeighbor.found          = 1;
         break;
       }
     }
   }
-  file.close();
-  return true;
-}
 
-bool TorqueTable::_save() {
-  // Delete existing file, otherwise the configuration is appended to the file
-  LittleFS.remove(TORQUE_TABLE_FILENAME);
-
-  // Open file for writing
-  SS2K_LOG(TORQUETABLE_LOG_TAG, "Writing File: %s", TORQUE_TABLE_FILENAME);
-  File file = LittleFS.open(TORQUE_TABLE_FILENAME, FILE_WRITE);
-  if (!file) {
-    SS2K_LOG(TORQUETABLE_LOG_TAG, "Failed to create file");
-    return false;
+  if (returnResult.leftNeighbor.targetPosition < testValue || returnResult.leftNeighbor.targetPosition == INT16_MIN) {
+    returnResult.leftNeighbor.passedTest = 1;
   }
-  // Allocate a temporary JsonDocument
-  // Don't forget to change the capacity to match your requirements.
-  // Use arduinojson.org/assistant to compute the capacity.
-  StaticJsonDocument<1000> doc;
-  int size = 0;
-  for (int i = 0; i < TORQUETABLE_SIZE; i++) {
-    String t = "t";
-    t += std::to_string(i).c_str();
-    String p = "p";
-    p += std::to_string(i).c_str();
-    doc[t] = this->torqueEntry[i].torque;
-    doc[p] = this->torqueEntry[i].targetPosition;
-    if (this->torqueEntry[i].torque > 0) {
-      size++;
+
+  // Check right neighbor
+  if (j < POWERTABLE_WATT_SIZE - 1) {
+    for (int right = j + 1; right < POWERTABLE_WATT_SIZE; ++right) {
+      if (this->tableRow[i].tableEntry[right].targetPosition != INT16_MIN) {
+        returnResult.rightNeighbor.targetPosition = this->tableRow[i].tableEntry[right].targetPosition;
+        returnResult.rightNeighbor.i              = i;
+        returnResult.rightNeighbor.j              = right;
+        returnResult.rightNeighbor.found          = 1;
+        break;
+      }
     }
   }
 
-  doc["size"] = size;
-
-  // Serialize JSON to file
-  if (serializeJson(doc, file) == 0) {
-    SS2K_LOG(TORQUETABLE_LOG_TAG, "Failed to write to file");
+  if (returnResult.rightNeighbor.targetPosition > testValue || returnResult.rightNeighbor.targetPosition == INT16_MIN) {
+    returnResult.rightNeighbor.passedTest = 1;
   }
-  // Close the file
-  file.close();
-  lastSaveTime = millis();
-  return true;  // return successful
+
+  // Check top neighbor
+  if (i > 0) {
+    for (int up = i - 1; up >= 0; --up) {
+      if (this->tableRow[up].tableEntry[j].targetPosition != INT16_MIN) {
+        returnResult.topNeighbor.targetPosition = this->tableRow[up].tableEntry[j].targetPosition;
+        returnResult.topNeighbor.i              = up;
+        returnResult.topNeighbor.j              = j;
+        returnResult.topNeighbor.found          = 1;
+        break;
+      }
+    }
+  }
+
+  if (returnResult.topNeighbor.targetPosition > testValue || returnResult.topNeighbor.targetPosition == INT16_MIN) {
+    returnResult.topNeighbor.passedTest = 1;
+  }
+
+  // Check bottom neighbor
+  if (i < POWERTABLE_CAD_SIZE - 1) {
+    for (int down = i + 1; down < POWERTABLE_CAD_SIZE; ++down) {
+      if (this->tableRow[down].tableEntry[j].targetPosition != INT16_MIN) {
+        returnResult.bottomNeighbor.targetPosition = this->tableRow[down].tableEntry[j].targetPosition;
+        returnResult.bottomNeighbor.i              = down;
+        returnResult.bottomNeighbor.j              = j;
+        returnResult.bottomNeighbor.found          = 1;
+        break;
+      }
+    }
+  }
+
+  if (returnResult.bottomNeighbor.targetPosition < testValue || returnResult.bottomNeighbor.targetPosition == INT16_MIN) {
+    returnResult.bottomNeighbor.passedTest = 1;
+  }
+
+  if (returnResult.bottomNeighbor.found && returnResult.topNeighbor.found && returnResult.rightNeighbor.found && returnResult.leftNeighbor.found) {
+    returnResult.allNeighborsFound = 1;
+  }
+  if (returnResult.bottomNeighbor.passedTest && returnResult.topNeighbor.passedTest && returnResult.rightNeighbor.passedTest && returnResult.leftNeighbor.passedTest) {
+    returnResult.allNeighborsPassed = 1;
+  }
+  return returnResult;
 }
 
-float _wattsToTorque(int watts, float cad) {
-  float torque = (TORQUE_CONSTANT * watts) / cad + ((NORMAL_CAD - cad) / CAD_MULTIPLIER);
-  return torque;
+void PowerTable::fillTable() {
+  int tempValue = INT16_MIN;
+
+  // Fill each empty cell by linear interpolation
+  for (int i = 0; i < POWERTABLE_CAD_SIZE; ++i) {
+    // Interpolate horizontally
+    for (int j = 0; j < POWERTABLE_WATT_SIZE; ++j) {
+      if (this->tableRow[i].tableEntry[j].targetPosition == INT16_MIN) {
+        // Find nearest left and right non-empty cells
+        int left = j - 1;
+        while (left >= 0 && this->tableRow[i].tableEntry[left].targetPosition == INT16_MIN) left--;
+        int right = j + 1;
+        while (right < POWERTABLE_WATT_SIZE && this->tableRow[i].tableEntry[right].targetPosition == INT16_MIN) right++;
+
+        if (left >= 0 && right < POWERTABLE_WATT_SIZE) {
+          // Linear interpolation
+          tempValue = this->tableRow[i].tableEntry[left].targetPosition +
+                      (this->tableRow[i].tableEntry[right].targetPosition - this->tableRow[i].tableEntry[left].targetPosition) * (j - left) / (right - left);
+          if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
+            this->tableRow[i].tableEntry[j].targetPosition = tempValue;
+          }
+        }
+      }
+    }
+  }
+
+  for (int j = 0; j < POWERTABLE_WATT_SIZE; ++j) {
+    // Interpolate vertically
+    for (int i = 0; i < POWERTABLE_CAD_SIZE; ++i) {
+      if (this->tableRow[i].tableEntry[j].targetPosition == INT16_MIN) {
+        // Find nearest top and bottom non-empty cells
+        int top = i - 1;
+        while (top >= 0 && this->tableRow[top].tableEntry[j].targetPosition == INT16_MIN) top--;
+        int bottom = i + 1;
+        while (bottom < POWERTABLE_CAD_SIZE && this->tableRow[bottom].tableEntry[j].targetPosition == INT16_MIN) bottom++;
+
+        if (top >= 0 && bottom < POWERTABLE_CAD_SIZE) {
+          // Linear interpolation
+          tempValue = this->tableRow[top].tableEntry[j].targetPosition +
+                      (this->tableRow[bottom].tableEntry[j].targetPosition - this->tableRow[top].tableEntry[j].targetPosition) * (i - top) / (bottom - top);
+          if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
+            this->tableRow[i].tableEntry[j].targetPosition = tempValue;
+          }
+        }
+      }
+    }
+  }
 }
 
-int _torqueToWatts(float torque, float cad) {
-  int watts = ((CAD_MULTIPLIER * cad * torque) + ((cad * cad) - cad * NORMAL_CAD)) / (TORQUE_CONSTANT * CAD_MULTIPLIER);
-  return watts;
+void PowerTable::extrapFillTable() {
+  // Find the center of the known data
+  int sumRow = 0, sumCol = 0, count = 0;
+  for (int i = 0; i < POWERTABLE_CAD_SIZE; ++i) {
+    for (int j = 0; j < POWERTABLE_WATT_SIZE; ++j) {
+      if (this->tableRow[i].tableEntry[j].targetPosition != INT16_MIN) {
+        sumRow += i;
+        sumCol += j;
+        count++;
+      }
+    }
+  }
+
+  // prevent divide by zero
+  if (count == 0) {
+    return;
+  }
+
+  int centerRow = sumRow / count;
+  int centerCol = sumCol / count;
+  int tempValue = INT16_MIN;
+
+  // Function to extrapolate a single cell based on its neighbors
+  auto extrapolateCell = [&](int i, int j) {
+    // Find nearest left non-empty cell
+    int left = j - 1;
+    while (left >= 0 && this->tableRow[i].tableEntry[left].targetPosition == INT16_MIN) left--;
+
+    // Find nearest right non-empty cell
+    int right = j + 1;
+    while (right < POWERTABLE_WATT_SIZE && this->tableRow[i].tableEntry[right].targetPosition == INT16_MIN) right++;
+
+    if (left >= 0 && right < POWERTABLE_WATT_SIZE) {
+      // Linear extrapolation
+      if (this->tableRow[i].tableEntry[left].targetPosition != INT16_MIN && this->tableRow[i].tableEntry[right].targetPosition != INT16_MIN) {
+        if (j < left) {
+          // Extrapolate to the left
+          tempValue = this->tableRow[i].tableEntry[left].targetPosition -
+                      (this->tableRow[i].tableEntry[right].targetPosition - this->tableRow[i].tableEntry[left].targetPosition) / (right - left) * (left - j);
+          if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
+            this->tableRow[i].tableEntry[j].targetPosition = tempValue;
+          }
+        } else if (j > right) {
+          // Extrapolate to the right
+          tempValue = this->tableRow[i].tableEntry[right].targetPosition +
+                      (this->tableRow[i].tableEntry[right].targetPosition - this->tableRow[i].tableEntry[left].targetPosition) / (right - left) * (j - right);
+          if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
+            this->tableRow[i].tableEntry[j].targetPosition = tempValue;
+          }
+        }
+      }
+    } else if (left - 1 >= 0) {
+      // Only left value available, extrapolate to the right
+      if (this->tableRow[i].tableEntry[left].targetPosition != INT16_MIN && this->tableRow[i].tableEntry[left - 1].targetPosition != INT16_MIN) {
+        tempValue = this->tableRow[i].tableEntry[left].targetPosition +
+                    (j - left) * (left > 0 ? this->tableRow[i].tableEntry[left].targetPosition - this->tableRow[i].tableEntry[left - 1].targetPosition : 1);
+        if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
+          this->tableRow[i].tableEntry[j].targetPosition = tempValue;
+        }
+      }
+    } else if (right + 1 < POWERTABLE_WATT_SIZE) {
+      // Only right value available, extrapolate to the left
+      if (this->tableRow[i].tableEntry[right + 1].targetPosition != INT16_MIN && this->tableRow[i].tableEntry[right].targetPosition != INT16_MIN) {
+        tempValue =
+            this->tableRow[i].tableEntry[right].targetPosition -
+            (right - j) * (right < POWERTABLE_WATT_SIZE - 1 ? this->tableRow[i].tableEntry[right + 1].targetPosition - this->tableRow[i].tableEntry[right].targetPosition : 1);
+        if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
+          this->tableRow[i].tableEntry[j].targetPosition = tempValue;
+        }
+      }
+    }
+  };
+
+  // Extrapolate horizontally and vertically starting from the center
+  for (int distance = 0; distance <= std::max(centerRow, centerCol); ++distance) {
+    for (int i = centerRow - distance; i <= centerRow + distance; ++i) {
+      for (int j = centerCol - distance; j <= centerCol + distance; ++j) {
+        if (i >= 0 && i < POWERTABLE_CAD_SIZE && j >= 0 && j < POWERTABLE_WATT_SIZE && this->tableRow[i].tableEntry[j].targetPosition == INT16_MIN) {
+          extrapolateCell(i, j);
+        }
+      }
+    }
+  }
+  // Extrapolate each empty cell
+  for (int i = 0; i < POWERTABLE_CAD_SIZE; ++i) {
+    // Extrapolate horizontally
+    for (int j = 0; j < POWERTABLE_WATT_SIZE; ++j) {
+      if (this->tableRow[i].tableEntry[j].targetPosition == INT16_MIN) {
+        // Find nearest left non-empty cell
+        int left = j - 1;
+        while (left >= 0 && this->tableRow[i].tableEntry[left].targetPosition == INT16_MIN) left--;
+
+        // Find nearest right non-empty cell
+        int right = j + 1;
+        while (right < POWERTABLE_WATT_SIZE && this->tableRow[i].tableEntry[right].targetPosition == INT16_MIN) right++;
+        if (this->tableRow[i].tableEntry[left].targetPosition != INT16_MIN && this->tableRow[i].tableEntry[right].targetPosition != INT16_MIN) {
+          if (left >= 0 && right < POWERTABLE_WATT_SIZE) {
+            // Linear extrapolation
+            if (j < left) {
+              // Extrapolate to the left
+              tempValue = this->tableRow[i].tableEntry[left].targetPosition -
+                          (this->tableRow[i].tableEntry[right].targetPosition - this->tableRow[i].tableEntry[left].targetPosition) / (right - left) * (left - j);
+              if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
+                this->tableRow[i].tableEntry[j].targetPosition = tempValue;
+              }
+
+            } else if (j > right) {
+              // Extrapolate to the right
+              tempValue = this->tableRow[i].tableEntry[right].targetPosition +
+                          (this->tableRow[i].tableEntry[right].targetPosition - this->tableRow[i].tableEntry[left].targetPosition) / (right - left) * (j - right);
+              if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
+                this->tableRow[i].tableEntry[j].targetPosition = tempValue;
+              }
+            }
+          } else if (left >= 1) {
+            // Only left value available, extrapolate to the right
+            if (this->tableRow[i].tableEntry[left].targetPosition != INT16_MIN && this->tableRow[i].tableEntry[left - 1].targetPosition != INT16_MIN) {
+              tempValue = this->tableRow[i].tableEntry[left].targetPosition +
+                          (j - left) * (left > 0 ? this->tableRow[i].tableEntry[left].targetPosition - this->tableRow[i].tableEntry[left - 1].targetPosition : 1);
+              if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
+                this->tableRow[i].tableEntry[j].targetPosition = tempValue;
+              }
+            }
+          } else if (right + 1 < POWERTABLE_WATT_SIZE) {
+            // Only right value available, extrapolate to the left
+            if (this->tableRow[i].tableEntry[right].targetPosition != INT16_MIN && this->tableRow[i].tableEntry[right + 1].targetPosition != INT16_MIN) {
+              tempValue = this->tableRow[i].tableEntry[right].targetPosition -
+                          (right - j) *
+                              (right < POWERTABLE_WATT_SIZE - 1 ? this->tableRow[i].tableEntry[right + 1].targetPosition - this->tableRow[i].tableEntry[right].targetPosition : 1);
+              if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
+                this->tableRow[i].tableEntry[j].targetPosition = tempValue;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  for (int j = 0; j < POWERTABLE_WATT_SIZE; ++j) {
+    // Extrapolate vertically
+    for (int i = 0; i < POWERTABLE_CAD_SIZE; ++i) {
+      if (this->tableRow[i].tableEntry[j].targetPosition == INT16_MIN) {
+        // Find nearest top non-empty cell
+        int top = i - 1;
+        while (top >= 0 && this->tableRow[top].tableEntry[j].targetPosition == INT16_MIN) top--;
+
+        // Find nearest bottom non-empty cell
+        int bottom = i + 1;
+        while (bottom < POWERTABLE_CAD_SIZE && this->tableRow[bottom].tableEntry[j].targetPosition == INT16_MIN) bottom++;
+
+        if (top >= 0 && bottom < POWERTABLE_CAD_SIZE) {
+          // Linear extrapolation
+          if (i < top) {
+            // Extrapolate upwards
+            tempValue = this->tableRow[top].tableEntry[j].targetPosition -
+                        (this->tableRow[bottom].tableEntry[j].targetPosition - this->tableRow[top].tableEntry[j].targetPosition) / (bottom - top) * (top - i);
+            if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
+              this->tableRow[i].tableEntry[j].targetPosition = tempValue;
+            }
+          } else if (i > bottom) {
+            // Extrapolate downwards
+            tempValue = this->tableRow[bottom].tableEntry[j].targetPosition +
+                        (this->tableRow[bottom].tableEntry[j].targetPosition - this->tableRow[top].tableEntry[j].targetPosition) / (bottom - top) * (i - bottom);
+            if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
+              this->tableRow[i].tableEntry[j].targetPosition = tempValue;
+            }
+          }
+        } else if (top >= 1) {
+          // Only top value available, extrapolate downwards
+          if (this->tableRow[top].tableEntry[j].targetPosition != INT16_MIN && this->tableRow[top - 1].tableEntry[j].targetPosition != INT16_MIN) {
+            tempValue = this->tableRow[top].tableEntry[j].targetPosition +
+                        (i - top) * (top > 0 ? this->tableRow[top].tableEntry[j].targetPosition - this->tableRow[top - 1].tableEntry[j].targetPosition : 1);
+            if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
+              this->tableRow[i].tableEntry[j].targetPosition = tempValue;
+            } else {
+            }
+          }
+        } else if (bottom + 1 < POWERTABLE_CAD_SIZE) {
+          // Only bottom value available, extrapolate upwards
+          if (this->tableRow[bottom].tableEntry[j].targetPosition != INT16_MIN && this->tableRow[bottom + 1].tableEntry[j].targetPosition != INT16_MIN) {
+            tempValue = this->tableRow[bottom].tableEntry[j].targetPosition -
+                        (bottom - i) *
+                            (bottom < POWERTABLE_CAD_SIZE - 1 ? this->tableRow[bottom + 1].tableEntry[j].targetPosition - this->tableRow[bottom].tableEntry[j].targetPosition : 1);
+            if (this->testNeighbors(i, j, tempValue).allNeighborsPassed) {
+              this->tableRow[i].tableEntry[j].targetPosition = tempValue;
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
-int TorqueTable::getEntries() {
+void PowerTable::extrapolateDiagonal() {
+  int tempValue = INT16_MIN;
+
+  for (int i = 0; i < POWERTABLE_CAD_SIZE; ++i) {
+    for (int j = 0; j < POWERTABLE_WATT_SIZE; ++j) {
+      if (this->tableRow[i].tableEntry[j].targetPosition == INT16_MIN) {
+        // Find nearest top-left non-empty cell
+        int topLeftRow = i - 1, topLeftCol = j - 1;
+        while (topLeftRow >= 0 && topLeftCol >= 0 && this->tableRow[topLeftRow].tableEntry[topLeftCol].targetPosition == INT16_MIN) {
+          topLeftRow--;
+          topLeftCol--;
+        }
+
+        // Find nearest bottom-right non-empty cell
+        int bottomRightRow = i + 1, bottomRightCol = j + 1;
+        while (bottomRightRow < POWERTABLE_CAD_SIZE && bottomRightCol < POWERTABLE_WATT_SIZE &&
+               this->tableRow[bottomRightRow].tableEntry[bottomRightCol].targetPosition == INT16_MIN) {
+          bottomRightRow++;
+          bottomRightCol++;
+        }
+
+        // Perform diagonal extrapolation (top-left to bottom-right)
+        if (topLeftRow >= 0 && topLeftCol >= 0 && bottomRightRow < POWERTABLE_CAD_SIZE && bottomRightCol < POWERTABLE_WATT_SIZE) {
+          tempValue =
+              this->tableRow[topLeftRow].tableEntry[topLeftCol].targetPosition +
+              ((this->tableRow[bottomRightRow].tableEntry[bottomRightCol].targetPosition - this->tableRow[topLeftRow].tableEntry[topLeftCol].targetPosition) * (j - topLeftCol)) /
+                  (bottomRightCol - topLeftCol);
+
+          if (testNeighbors(i, j, tempValue).allNeighborsPassed) {
+            this->tableRow[i].tableEntry[j].targetPosition = tempValue;
+          }
+        }
+
+        // If diagonal top-left to bottom-right is not enough, try top-right to bottom-left
+        if (tempValue == INT16_MIN) {
+          // Find nearest top-right non-empty cell
+          int topRightRow = i - 1, topRightCol = j + 1;
+          while (topRightRow >= 0 && topRightCol < POWERTABLE_WATT_SIZE && this->tableRow[topRightRow].tableEntry[topRightCol].targetPosition == INT16_MIN) {
+            topRightRow--;
+            topRightCol++;
+          }
+
+          // Find nearest bottom-left non-empty cell
+          int bottomLeftRow = i + 1, bottomLeftCol = j - 1;
+          while (bottomLeftRow < POWERTABLE_CAD_SIZE && bottomLeftCol >= 0 && this->tableRow[bottomLeftRow].tableEntry[bottomLeftCol].targetPosition == INT16_MIN) {
+            bottomLeftRow++;
+            bottomLeftCol--;
+          }
+
+          // Perform diagonal extrapolation (top-right to bottom-left)
+          if (topRightRow >= 0 && topRightCol < POWERTABLE_WATT_SIZE && bottomLeftRow < POWERTABLE_CAD_SIZE && bottomLeftCol >= 0) {
+            tempValue = this->tableRow[topRightRow].tableEntry[topRightCol].targetPosition +
+                        ((this->tableRow[bottomLeftRow].tableEntry[bottomLeftCol].targetPosition - this->tableRow[topRightRow].tableEntry[topRightCol].targetPosition) *
+                         (j - bottomLeftCol)) /
+                            (topRightCol - bottomLeftCol);
+
+            if (testNeighbors(i, j, tempValue).allNeighborsPassed) {
+              this->tableRow[i].tableEntry[j].targetPosition = tempValue;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+int PowerTable::getNumEntries() {
   int ret = 0;
-  for (int i = 0; i < TORQUETABLE_SIZE; i++) {
-    if (this->torqueEntry[i].readings > 0) {
-      ret++;
+  for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
+    for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
+      if (this->tableRow[i].tableEntry[j].targetPosition != INT16_MIN) {
+        ret++;
+      }
     }
   }
   return ret;
 }
 
-// Display torque table in log
-void TorqueTable::toLog() {
-  int len = 4;
-  for (int i = 0; i < TORQUETABLE_SIZE; i++) {  // Find the longest integer to dynamically size the torque table
-    int l = snprintf(nullptr, 0, "%d", this->torqueEntry[i].targetPosition);
-    if (len < l) {
-      len = l;
+void PowerTable::clean() {
+  int ret = 0;
+  for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
+    for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
+      if (this->tableRow[i].tableEntry[j].readings < 1) {
+        this->tableRow[i].tableEntry[j].targetPosition = INT16_MIN;
+      }
     }
   }
-  char buffer[len + 2];
-  String oString   = "";
-  char oFormatT[5] = "";
-  sprintf(oFormatT, "|%%%dd", len);
-  char oFormatP[5] = "";
-  sprintf(oFormatP, "|%%%dd", len);
+}
 
-  for (int i = 0; i < TORQUETABLE_SIZE; i++) {
-    sprintf(buffer, oFormatT, (int)this->torqueEntry[i].torque);
-    oString += buffer;
-  }
-  SS2K_LOG(TORQUETABLE_LOG_TAG, "%s|", oString.c_str());
-  oString = "";
+void PowerTable::newEntry(PowerBuffer& powerBuffer) {
+  // these are floats so that we make sure division works correctly.
+  float watts        = 0;
+  float cad          = 0;
+  float targetPosition = 0;
 
-  for (int i = 0; i < TORQUETABLE_SIZE; i++) {
-    sprintf(buffer, oFormatP, this->torqueEntry[i].targetPosition);
-    oString += buffer;
+  // First, take the power buffer and average all of the samples together.
+  int validEntries = 0;
+  for (int i = 0; i < POWER_SAMPLES; i++) {
+    if (powerBuffer.powerEntry[i].readings == 0) {
+      // Stop when buffer is empty
+      break;
+    }
+
+    // Accumulate values
+    watts += powerBuffer.powerEntry[i].watts;
+    cad += powerBuffer.powerEntry[i].cad;
+    targetPosition += powerBuffer.powerEntry[i].targetPosition;
+    validEntries++;
   }
-  SS2K_LOG(TORQUETABLE_LOG_TAG, "%s|", oString.c_str());
+
+  // Calculate the average if there are valid entries
+  if (validEntries > 0) {
+    watts /= validEntries;
+    cad /= validEntries;
+    targetPosition /= validEntries;
+  } else {
+    SS2K_LOG(POWERTABLE_LOG_TAG, "No valid entries in the power buffer.");
+    return;
+  }
+
+  // clean previously extrapolated data so we don't fill with trash.
+  this->clean();
+  // To start working on the PowerTable, we need to calculate position in the table for the new entry
+  int i = round(watts / (float)POWERTABLE_WATT_INCREMENT);
+  int k = round((cad - (float)MINIMUM_TABLE_CAD) / (float)POWERTABLE_CAD_INCREMENT);
+  SS2K_LOG(POWERTABLE_LOG_TAG, "Averaged Entry: watts=%f, cad=%f, targetPosition=%f, (%d)(%d)", watts, cad, targetPosition, k, i);
+
+  // Ensure k is within valid range
+  if ((k < 0) || (k > (POWERTABLE_CAD_SIZE - 1))) {
+    SS2K_LOG(POWERTABLE_LOG_TAG, "Cad index was out of range %d", k);
+    return;
+  }
+  // Ensure i is within valid range
+  if (i < 0 || i > (POWERTABLE_WATT_SIZE - 1)) {
+    SS2K_LOG(POWERTABLE_LOG_TAG, "Watt index was out of range %d max %d", i, POWERTABLE_WATT_SIZE - 1);
+    return;
+  }
+
+  // Downvote out of position neighbors and discard entry if it doesn't match the logic of the table
+  TestResults testResults = this->testNeighbors(k, i, targetPosition);
+  if (!(testResults.bottomNeighbor.passedTest && testResults.topNeighbor.passedTest && testResults.rightNeighbor.passedTest && testResults.leftNeighbor.passedTest)) {
+    // test which bit fields didn't match
+    if (!testResults.leftNeighbor.passedTest) {
+      this->tableRow[testResults.leftNeighbor.i].tableEntry[testResults.leftNeighbor.j].readings--;
+      SS2K_LOG(POWERTABLE_LOG_TAG, "PT failed Left (%d)(%d)(%d), readings (%d)", testResults.leftNeighbor.i, testResults.leftNeighbor.j, testResults.leftNeighbor.targetPosition,
+               this->tableRow[testResults.leftNeighbor.i].tableEntry[testResults.leftNeighbor.j].readings);
+    }
+    if (!testResults.rightNeighbor.passedTest) {
+      this->tableRow[testResults.rightNeighbor.i].tableEntry[testResults.rightNeighbor.j].readings--;
+      SS2K_LOG(POWERTABLE_LOG_TAG, "PT failed Right (%d)(%d)(%d), readings (%d)", testResults.rightNeighbor.i, testResults.rightNeighbor.j,
+               testResults.rightNeighbor.targetPosition, this->tableRow[testResults.rightNeighbor.i].tableEntry[testResults.rightNeighbor.j].readings);
+    }
+    if (!testResults.topNeighbor.passedTest) {
+      this->tableRow[testResults.topNeighbor.i].tableEntry[testResults.topNeighbor.j].readings--;
+      SS2K_LOG(POWERTABLE_LOG_TAG, "PT failed Top (%d)(%d)(%d), readings (%d)", testResults.topNeighbor.i, testResults.topNeighbor.j, testResults.topNeighbor.targetPosition,
+               this->tableRow[testResults.topNeighbor.i].tableEntry[testResults.topNeighbor.j].readings);
+    }
+    if (!testResults.bottomNeighbor.passedTest) {
+      this->tableRow[testResults.bottomNeighbor.i].tableEntry[testResults.bottomNeighbor.j].readings--;
+      SS2K_LOG(POWERTABLE_LOG_TAG, "PT failed Bottom (%d)(%d)(%d), readings (%d)", testResults.bottomNeighbor.i, testResults.bottomNeighbor.j,
+               testResults.bottomNeighbor.targetPosition, this->tableRow[testResults.bottomNeighbor.i].tableEntry[testResults.bottomNeighbor.j].readings);
+    }
+    return;
+  }
+
+  // Update or create a new entry
+  if (this->tableRow[k].tableEntry[i].readings == 0) {  // if first reading in this entry
+    this->tableRow[k].tableEntry[i].targetPosition = targetPosition;
+    SS2K_LOG(POWERTABLE_LOG_TAG, "New entry recorded (%d)(%d)(%d)", k, i, this->tableRow[k].tableEntry[i].targetPosition);
+  } else {  // Average and update the readings.
+    this->tableRow[k].tableEntry[i].targetPosition =
+        (targetPosition + (this->tableRow[k].tableEntry[i].targetPosition * this->tableRow[k].tableEntry[i].readings)) / (this->tableRow[k].tableEntry[i].readings + 1.0);
+    SS2K_LOG(POWERTABLE_LOG_TAG, "Existing entry averaged (%d)(%d)(%d), readings(%d)", k, i, this->tableRow[k].tableEntry[i].targetPosition,
+             this->tableRow[k].tableEntry[i].readings);
+    if (this->tableRow[k].tableEntry[i].readings > POWER_SAMPLES * 2) {
+      this->tableRow[k].tableEntry[i].readings = POWER_SAMPLES * 2;  // keep from diluting recent readings too far.
+    }
+  }
+  this->tableRow[k].tableEntry[i].readings++;
+  // Attempt to fill the table with calculated data...
+  if (this->getNumEntries() > 4) {
+    int entries    = 0;
+    int newEntries = 1;
+    // loop until we can't calculate any new data
+    while (entries < newEntries) {
+      entries = newEntries;
+      this->fillTable();
+      this->extrapFillTable();
+      this->extrapolateDiagonal();
+      newEntries = getNumEntries();
+    }
+  }
+  // Notify connected client of new data
+  BLE_ss2kCustomCharacteristic::notify(0x27, k);
+}
+
+bool PowerTable::_manageSaveState() {
+  // Check if the table has been loaded in this session
+  if (!this->_hasBeenLoadedThisSession) {
+    SS2K_LOG(POWERTABLE_LOG_TAG, "Loading Power Table....");
+    File file = LittleFS.open(POWER_TABLE_FILENAME, FILE_READ);
+    if (!file) {
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Failed to Load Power Table.");
+      file.close();
+      this->_save();
+      return false;
+    }
+
+    // Read version and size
+    int version;
+    file.read((uint8_t*)&version, sizeof(version));
+    int savedQuality;
+    file.read((uint8_t*)&savedQuality, sizeof(savedQuality));
+    if (version != TABLE_VERSION) {
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Expected power table version %d, found version %d", TABLE_VERSION, version);
+      file.close();
+      this->_save();
+      return false;
+    }
+
+    // Is the data we are working with better than the saved file?
+    int activeReadings = this->getNumReadings();
+    if (activeReadings > savedQuality) {
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Active table had a reliability of %d, vs %d for the saved file. Overwriting save.", activeReadings, savedQuality);
+      file.close();
+      this->_save();
+    }
+
+    SS2K_LOG(POWERTABLE_LOG_TAG, "Loading power table version %d, Size %d", version, savedQuality);
+
+    // Initialize a counter for reliable positions
+    int reliablePositions = 0;
+
+    // Check if we have at least 3 reliable positions in the active table in order to determine a reliable offset to load the saved table
+    for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
+      for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
+        int16_t savedTargetPosition = INT16_MIN;
+        int8_t savedReadings        = 0;
+        file.read((uint8_t*)&savedTargetPosition, sizeof(savedTargetPosition));
+        file.read((uint8_t*)&savedReadings, sizeof(savedReadings));
+        // Does the saved file have a position that the active session has also recorded?
+        // We start comparing at watt position 3 (j>2) because low resistance positions are notoriously unreliable.
+        if ((j > 2) && (this->tableRow[i].tableEntry[j].targetPosition != INT16_MIN) && (this->tableRow[i].tableEntry[j].readings > MINIMUM_RELIABLE_POSITIONS) &&
+            (savedReadings > 0)) {
+          reliablePositions++;
+        }
+      }
+    }
+    if (reliablePositions < MINIMUM_RELIABLE_POSITIONS) {  // Do we have enough active data in order to calculate a (good) offset when we load the new table?
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Not enough matching positions to load the Power Table. %d of %d needed.", reliablePositions, MINIMUM_RELIABLE_POSITIONS);
+      file.close();
+      return false;
+    } else {
+      // continue loading
+    }
+    file.close();
+
+    // We passed our checks to load, lets load the saved table into active memory
+    file = LittleFS.open(POWER_TABLE_FILENAME, FILE_READ);
+    if (!file) {
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Failed to Load Power Table. Resetting the save.");
+      file.close();
+      this->_save();
+      return false;
+    }
+
+    // get these reads done, so that we're in the right position to read the data from the file.
+    file.read((uint8_t*)&version, sizeof(version));
+    file.read((uint8_t*)&savedQuality, sizeof(savedQuality));
+    std::vector<float> offsetDifferences;
+
+    reliablePositions = 0;
+    // Read table entries and calculate offsets
+    for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
+      for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
+        int16_t savedTargetPosition = INT16_MIN;
+        int8_t savedReadings        = 0;
+        file.read((uint8_t*)&savedTargetPosition, sizeof(savedTargetPosition));
+        file.read((uint8_t*)&savedReadings, sizeof(savedReadings));
+        if ((this->tableRow[i].tableEntry[j].targetPosition != INT16_MIN) && (savedTargetPosition != INT16_MIN) && (savedReadings > 0) &&
+            (this->tableRow[i].tableEntry[j].readings > MINIMUM_RELIABLE_POSITIONS)) {
+          int offset = this->tableRow[i].tableEntry[j].targetPosition - savedTargetPosition;
+          offsetDifferences.push_back(offset);
+          SS2K_LOG(POWERTABLE_LOG_TAG, "offset %d", offset);
+          reliablePositions++;
+        }
+        this->tableRow[i].tableEntry[j].targetPosition = savedTargetPosition;
+        this->tableRow[i].tableEntry[j].readings       = savedReadings;
+        SS2K_LOG(POWERTABLE_LOG_TAG, "Position %d, %d, Target %d, Readings %d, loaded", i, j, this->tableRow[i].tableEntry[j].targetPosition,
+                 this->tableRow[i].tableEntry[j].readings);
+      }
+    }
+
+    file.close();
+    float averageOffset = std::accumulate(offsetDifferences.begin(), offsetDifferences.end(), 0.0) / offsetDifferences.size();
+
+    // Apply the offset to all loaded positions except for INT16_MIN values
+    for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
+      for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
+        if (this->tableRow[i].tableEntry[j].targetPosition != INT16_MIN) {
+          this->tableRow[i].tableEntry[j].targetPosition += averageOffset;
+        }
+      }
+    }
+    // set the flag so it isn't loaded again this session.
+    this->_hasBeenLoadedThisSession = true;
+    SS2K_LOG(POWERTABLE_LOG_TAG, "Power Table loaded with an offset of %d.", averageOffset);
+  }
+
+  // Implement saving on a timer
+  if ((millis() - lastSaveTime) > POWER_TABLE_SAVE_INTERVAL) {
+    this->_save();
+    lastSaveTime = millis();
+  }
+  return true;
+}
+
+bool PowerTable::_save() {
+  // Delete existing file to avoid appending
+  LittleFS.remove(POWER_TABLE_FILENAME);
+
+  // Open file for writing
+  SS2K_LOG(POWERTABLE_LOG_TAG, "Writing File: %s", POWER_TABLE_FILENAME);
+  File file = LittleFS.open(POWER_TABLE_FILENAME, FILE_WRITE);
+  if (!file) {
+    SS2K_LOG(POWERTABLE_LOG_TAG, "Failed to create file");
+    return false;
+  }
+
+  // Write version and size
+  int version = TABLE_VERSION;
+  file.write((uint8_t*)&version, sizeof(version));
+
+  int size = getNumReadings();
+  file.write((uint8_t*)&size, sizeof(size));
+
+  // Write table entries
+  for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
+    for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
+      file.write((uint8_t*)&this->tableRow[i].tableEntry[j].targetPosition, sizeof(this->tableRow[i].tableEntry[j].targetPosition));
+      file.write((uint8_t*)&this->tableRow[i].tableEntry[j].readings, sizeof(this->tableRow[i].tableEntry[j].readings));
+    }
+  }
+
+  // Close the file
+  file.close();
+  lastSaveTime                    = millis();
+  this->_hasBeenLoadedThisSession = true;
+  return true;  // return successful
+}
+
+// Reset the PowerTable to 0;
+bool PowerTable::reset() {
+  ss2k->resetPowerTableFlag = false;
+  for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
+    for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
+      this->tableRow[i].tableEntry[j].targetPosition = INT16_MIN;
+      this->tableRow[i].tableEntry[j].readings       = 0;
+    }
+  }
+  File file = LittleFS.open(POWER_TABLE_FILENAME, FILE_READ);
+  if (!file) {
+    SS2K_LOG(POWERTABLE_LOG_TAG, "Failed to Load Power Table.");
+    file.close();
+    this->_save();
+    return false;
+  }
+  file.close();
+  this->_save();
+  return true;
+}
+
+void PowerTable::toLog() {
+  int maxLen = 4;
+  // Find the longest integer to dynamically size the table
+  for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
+    for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
+      if (this->tableRow[i].tableEntry[j].targetPosition == INT16_MIN) {
+        continue;
+      }
+      int len = snprintf(nullptr, 0, "%d", this->tableRow[i].tableEntry[j].targetPosition);
+      if (maxLen < len) {
+        maxLen = len;
+      }
+    }
+  }
+
+  char buffer[maxLen + 2];  // Buffer for formatting
+  // Print header row
+  String headerRow = "CAD\\W ";
+  for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
+    snprintf(buffer, sizeof(buffer), "%*d", maxLen, j * POWERTABLE_WATT_INCREMENT);
+    headerRow += String(" | ") + buffer;
+  }
+  SS2K_LOG(POWERTABLE_LOG_TAG, "%s", headerRow.c_str());
+
+  // Print each row of the table
+  for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
+    String logString = String(i * POWERTABLE_CAD_INCREMENT + MINIMUM_TABLE_CAD) + " rpm";
+    for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
+      int targetPosition = this->tableRow[i].tableEntry[j].targetPosition;
+      if (targetPosition == INT16_MIN) {
+        snprintf(buffer, sizeof(buffer), "%*s", maxLen, " ");
+      } else {
+        snprintf(buffer, sizeof(buffer), "%*d", maxLen, targetPosition);
+      }
+      logString += String(" | ") + buffer;
+    }
+    SS2K_LOG(POWERTABLE_LOG_TAG, "%s", logString.c_str());
+  }
+}
+
+int PowerTable::getNumReadings() {
+  int ret = 0;
+  for (int i = 0; i < POWERTABLE_CAD_SIZE; i++) {
+    for (int j = 0; j < POWERTABLE_WATT_SIZE; j++) {
+      if (this->tableRow[i].tableEntry[j].readings > 0) {
+        ret++;
+      }
+    }
+  }
+  return ret;
 }
 
 // compute position for resistance control mode
@@ -543,7 +1079,7 @@ void ErgMode::computeResistance() {
   int newSetPoint = rtConfig->resistance.getTarget();
   int actualDelta = rtConfig->resistance.getTarget() - rtConfig->resistance.getValue();
   rtConfig->setTargetIncline(rtConfig->getTargetIncline() + (100 * actualDelta));
-  if (actualDelta = 0) {
+  if (actualDelta == 0) {
     rtConfig->setTargetIncline(rtConfig->getCurrentIncline());
   }
   oldResistance = rtConfig->resistance;
@@ -582,15 +1118,15 @@ void ErgMode::computeErg() {
 }
 
 void ErgMode::_setPointChangeState(int newCadence, Measurement& newWatts) {
-  int32_t tableResult = torqueTable->lookup(newWatts.getTarget(), newCadence);
+  int32_t tableResult = powerTable->lookup(newWatts.getTarget(), newCadence);
   if (tableResult == RETURN_ERROR) {
     int wattChange  = newWatts.getTarget() - newWatts.getValue();
     float deviation = ((float)wattChange * 100.0) / ((float)newWatts.getTarget());
-    float factor    = abs(deviation) > 10 ? userConfig->getERGSensitivity() : userConfig->getERGSensitivity() / 2;
+    float factor    = abs(deviation) > 10 ? userConfig->getERGSensitivity() * 2 : userConfig->getERGSensitivity() / 2;
     tableResult     = rtConfig->getCurrentIncline() + (wattChange * factor);
   }
 
-  SS2K_LOG(ERG_MODE_LOG_TAG, "SetPoint changed:%dw TorqueTable Result: %d", newWatts.getTarget(), tableResult);
+  SS2K_LOG(ERG_MODE_LOG_TAG, "SetPoint changed:%dw PowerTable Result: %d", newWatts.getTarget(), tableResult);
   _updateValues(newCadence, newWatts, tableResult);
 
   int i = 0;
@@ -646,5 +1182,5 @@ void ErgMode::_writeLogHeader() {
 }
 
 void ErgMode::_writeLog(float currentIncline, float newIncline, int currentSetPoint, int newSetPoint, int currentWatts, int newWatts, int currentCadence, int newCadence) {
-  SS2K_LOGW(ERG_MODE_LOG_CSV_TAG, "%d;%.2f;%.2f;%d;%d;%d;%d;%d;%d", currentIncline, newIncline, currentSetPoint, newSetPoint, currentWatts, newWatts, currentCadence, newCadence);
+  SS2K_LOGW(ERG_MODE_LOG_CSV_TAG, "%d;%.2f;%.2f;%d;%d;%d;%d;%d", currentIncline, newIncline, currentSetPoint, newSetPoint, currentWatts, newWatts, currentCadence, newCadence);
 }

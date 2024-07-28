@@ -39,7 +39,7 @@ const char * const DEFAULT_PASSWORD = "password";
 #define userPWCFILENAME "/userPWC.txt"
 
 // name of the local file to save the torque table. 
-#define TORQUE_TABLE_FILENAME "/TorqueTable.txt"
+#define POWER_TABLE_FILENAME "/PowerTable.txt"
 
 // Default Incline Multiplier.
 // Incline multiplier is the multiple required to convert incline received from the remote client (percent grade*100)
@@ -117,7 +117,7 @@ const char * const DEFAULT_PASSWORD = "password";
 #define DEFAULT_RESISTANCE_RANGE 2000
 
 // Default +- Stepper Travel Limit
-// This is used until the TorqueTable has enough data to compute travel limits
+// This is used until the PowerTable has enough data to compute travel limits
 #define DEFAULT_STEPPER_TRAVEL 200000000
 
 // Default debounce delay for shifters. Increase if you have false shifts. Decrease if shifting takes too long.
@@ -253,29 +253,42 @@ const char * const DEFAULT_PASSWORD = "password";
 
 #define RUNTIMECONFIG_JSON_SIZE 512 + DEBUG_LOG_BUFFER_SIZE
 
-/* Number of entries in the ERG Torque Lookup Table
+// PowerTable Version
+#define TABLE_VERSION 4
+
+/* Number of entries in the ERG Power Lookup Table
  This is currently maintained as to keep memory usage lower and reduce the print output of the table.
  It can be depreciated in the future should we decide to remove logging of the torque table. Then it should be calculated in ERG_Mode.cpp
- by dividing userConfig->getMaxWatts() by TORQUETABLE_INCREMENT.  */
-#define TORQUETABLE_SIZE 20
+ by dividing userConfig->getMaxWatts() by POWERTABLE_INCREMENT.  */
+#define POWERTABLE_WATT_SIZE 40
 
-// Size of increments (in Nm) for the ERG Lookup Table. Needs to be one decimal place for proper calculations
-#define TORQUETABLE_INCREMENT 5.31
+// Size of the second dimension of the table. The base (starting point) is calculated off of MINUMUM_TABLE_CAD
+#define POWERTABLE_CAD_SIZE 10
 
-// Number of similar torque samples to take before writing to the Torque Table
-#define TORQUE_SAMPLES 5
+// Size of increments (in watts) for the ERG Lookup Table. This needs to be a decimal for proper calculation.
+#define POWERTABLE_WATT_INCREMENT 30
 
-// The Array position of the most reliable Torque Table stepper position according to testing data.
-#define MOST_DEPENDABLE_TORQUE_ENTRY 2
+// Size of increments (in CAD) for the ERG Lookup Table. This needs to be a decimal for proper calculation. 
+#define POWERTABLE_CAD_INCREMENT 5
 
-// How often in ms to save the torque table if no new data is added and user is pedaling.
-#define TORQUE_TABLE_SAVE_INTERVAL 240000
+// Number of similar power samples to take before writing to the Power Table
+#define POWER_SAMPLES 5
 
-// Normal cadence value (used in torque table and other areas)
+// How often in ms to save the power table if no new data is added and user is pedaling.
+#define POWER_TABLE_SAVE_INTERVAL 240000
+
+// Normal cadence value (used in power table and other areas)
 #define NORMAL_CAD 90
 
+// Where does the CAD portion of the table start?
+#define MINIMUM_TABLE_CAD 60
+
+//Minimum positions recorded in the active table before attempting to load the saved table.
+//Increase this value if the offset for the loaded table is inaccurate.
+#define MINIMUM_RELIABLE_POSITIONS 3
+
 // Temperature of the ESP32 at which to start reducing the power output of the stepper motor driver.
-#define THROTTLE_TEMP 85
+#define THROTTLE_TEMP 90
 
 // Size of the Aux Serial Buffer for Peloton
 #define AUX_BUF_SIZE 10
@@ -300,11 +313,11 @@ const char * const DEFAULT_PASSWORD = "password";
 
 //Task Stack Sizes
 #define MAIN_STACK 4500
-#define ERG_STACK 6500
+#define ERG_STACK 6000
 #define HTTP_STACK 6000
 #define BLE_COMM_STACK 6000
-#define BLE_CLIENT_STACK 5000
-#define STEPPER_STACK 1700
+#define BLE_CLIENT_STACK 5500
+#define STEPPER_STACK 2000
 
 // Uncomment to enable stack size debugging info
 // #define DEBUG_STACK

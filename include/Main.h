@@ -35,10 +35,11 @@ class SS2K {
   bool externalControl;
   bool syncMode;
   int txCheck;
-  bool rebootFlag        = false;
-  bool saveFlag          = false;
-  bool resetDefaultsFlag = false;
-  bool isUpdating        = false;
+  bool rebootFlag          = false;
+  bool saveFlag            = false;
+  bool resetDefaultsFlag   = false;
+  bool resetPowerTableFlag = false;
+  bool isUpdating          = false;
 
   bool IRAM_ATTR deBounce();
   static void IRAM_ATTR moveStepper(void *pvParameters);

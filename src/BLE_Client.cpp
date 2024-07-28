@@ -84,16 +84,16 @@ void bleClientTask(void *pvParameters) {
     if ((millis() - scanDelay) > ((BLE_RECONNECT_SCAN_DURATION * 1000) * 2)) {
       spinBLEClient.checkBLEReconnect();
       scanDelay = millis();
+#ifdef DEBUG_STACK
+      Serial.printf("BLEClient: %d \n", uxTaskGetStackHighWaterMark(BLEClientTask));
+#endif  // DEBUG_STACK
     }
 
     if (spinBLEClient.doScan && (!ss2k->isUpdating)) {
       spinBLEClient.scanProcess();
     }
 
-// Connect BLE Servers to this client
-#ifdef DEBUG_STACK
-    Serial.printf("BLEClient: %d \n", uxTaskGetStackHighWaterMark(BLEClientTask));
-#endif  // DEBUG_STACK
+    // Connect BLE Servers to this client
     for (int x = 0; x < NUM_BLE_DEVICES; x++) {
       if (spinBLEClient.myBLEDevices[x].doConnect == true && !ss2k->isUpdating) {
         SS2K_LOG(BLE_CLIENT_LOG_TAG, "Connecting device on slot %d ...", x);
@@ -470,6 +470,8 @@ void SpinBLEClient::scanProcess(int duration) {
   SS2K_LOG(BLE_CLIENT_LOG_TAG, "Scanning for BLE servers and putting them into a list...");
 
   BLEScan *pBLEScan = BLEDevice::getScan();
+  pBLEScan->stop();
+  vTaskDelay(50 / portTICK_PERIOD_MS);
   pBLEScan->clearDuplicateCache();
   pBLEScan->clearResults();
   pBLEScan->setAdvertisedDeviceCallbacks(&myAdvertisedDeviceCallbacks);
@@ -528,8 +530,6 @@ void SpinBLEClient::scanProcess(int duration) {
   SEND_TO_TELEGRAM("Bluetooth Client Found Devices: " + output);
 #endif
   userConfig->setFoundDevices(output);  // Save the updated JSON document
-
-  pBLEScan = nullptr;  // free up memory
 }
 
 // remove the last connected BLE Power Meter
@@ -889,7 +889,6 @@ void SpinBLEAdvertisedDevice::reset() {
   if (this->isPM) spinBLEClient.connectedPM = false;
   if (this->isCSC) spinBLEClient.connectedCD = false;
   spinBLEClient.connectedSpeed = false;
-
   advertisedDevice = nullptr;
   // NimBLEAddress peerAddress;
   this->connectedClientID = BLE_HS_CONN_HANDLE_NONE;

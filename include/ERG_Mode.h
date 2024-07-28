@@ -12,76 +12,130 @@
 
 #define ERG_MODE_LOG_TAG     "ERG_Mode"
 #define ERG_MODE_LOG_CSV_TAG "ERG_Mode_CSV"
-#define TORQUETABLE_LOG_TAG  "TTable"
+#define POWERTABLE_LOG_TAG   "PTable"
 #define ERG_MODE_DELAY       700
-#define RETURN_ERROR         -99
-#define TORQUE_CONSTANT      9.5488
-#define CAD_MULTIPLIER       2.7
+#define RETURN_ERROR         INT16_MIN
 
 extern TaskHandle_t ErgTask;
 void setupERG();
 void ergTaskLoop(void* pvParameters);
 
-int _torqueToWatts(float torque, float cad);
-float _wattsToTorque(int watts, float cad);
-
-class TorqueEntry {
+class PowerEntry {
  public:
-  float torque;
-  int32_t targetPosition;
+  int watts;
+  int targetPosition;
+  int cad;
   int readings;
 
-  TorqueEntry() {
-    this->torque         = 0;
+  PowerEntry() {
+    this->watts          = 0;
     this->targetPosition = 0;
+    this->cad            = 0;
     this->readings       = 0;
   }
 };
 
-class TorqueBuffer {
+class PowerBuffer {
  public:
-  TorqueEntry torqueEntry[TORQUE_SAMPLES];
+  PowerEntry powerEntry[POWER_SAMPLES];
   void set(int);
   void reset();
   int getReadings();
 };
 
-class TorqueTable {
+// Simplifying the table to save memory since we no longer need watts and cad.
+class TableEntry {
  public:
-  TorqueEntry torqueEntry[TORQUETABLE_SIZE];
+  int16_t targetPosition;
+  int8_t readings;
+  TableEntry() {
+    this->targetPosition = INT16_MIN;
+    this->readings       = 0;
+  }
+};
 
-  // Pick up new torque value and put them into the torque table
-  void processTorqueValue(TorqueBuffer& torqueBuffer, int cadence, Measurement torque);
+// Combine Entries to make a row.
+class TableRow {
+ public:
+  TableEntry tableEntry[POWERTABLE_WATT_SIZE];
+};
 
-  // Sets stepper min/max value from torque table
+class TestResults {
+  struct Neighbor {
+    unsigned int found : 1;
+    unsigned int passedTest : 1;
+    int8_t i;
+    int8_t j;
+    int16_t targetPosition;
+
+    Neighbor() {
+      found          = false;
+      passedTest     = false;
+      i              = INT8_MIN;
+      j              = INT8_MIN;
+      targetPosition = INT16_MIN;
+    }
+  };
+
+ public:
+  Neighbor leftNeighbor;
+  Neighbor rightNeighbor;
+  Neighbor topNeighbor;
+  Neighbor bottomNeighbor;
+  unsigned int allNeighborsFound : 1;
+  unsigned int allNeighborsPassed : 1;
+
+  TestResults() {
+    allNeighborsFound  = false;
+    allNeighborsPassed = false;
+  }
+};
+
+class PowerTable {
+ public:
+  TableRow tableRow[POWERTABLE_CAD_SIZE];
+
+  // Pick up new power value and put them into the power table
+  void processPowerValue(PowerBuffer& powerBuffer, int cadence, Measurement power);
+
+  // Sets stepper min/max value from power table
   void setStepperMinMax();
 
-  // Catalogs a new entry into the torque table.
-  void newEntry(TorqueBuffer& torqueBuffer);
+  // Catalogs a new entry into the power table.
+  void newEntry(PowerBuffer& powerBuffer);
 
   // returns incline for wattTarget. Null if not found.
   int32_t lookup(int watts, int cad);
 
-  // automatically load or save the Torque Table
+  // automatically load or save the Power Table
   bool _manageSaveState();
 
-  // save torquetable from littlefs
+  // save powertable from littlefs
   bool _save();
 
-  //return number of entries in the table. 
-  int getEntries();
+  // Reset the active power table and delete the saved power table.
+  bool reset();
 
-  // Display torque table in log
+  // return number of readings in the table.
+  int getNumReadings();
+
+  // Display power table in log
   void toLog();
 
  private:
-  unsigned long lastSaveTime = millis();
+  unsigned long lastSaveTime     = millis();
   bool _hasBeenLoadedThisSession = false;
+  TestResults testNeighbors(int i, int j, int value);
+  void fillTable();
+  void extrapFillTable();
+  void extrapolateDiagonal();
+  int getNumEntries();
+  // remove entries with < 1 readings
+  void clean();
 };
 
 class ErgMode {
  public:
-  ErgMode(TorqueTable* torqueTable) { this->torqueTable = torqueTable; }
   void computeErg();
   void computeResistance();
   void _writeLogHeader();
@@ -96,7 +150,6 @@ class ErgMode {
   int cadence          = 0;
 
   Measurement watts;
-  TorqueTable* torqueTable;
 
   // check if user is spinning, reset incline if user stops spinning
   bool _userIsSpinning(int cadence, float incline);
@@ -110,3 +163,5 @@ class ErgMode {
   // update localvalues + incline, creates a log
   void _updateValues(int newCadence, Measurement& newWatts, float newIncline);
 };
+
+extern PowerTable* powerTable;

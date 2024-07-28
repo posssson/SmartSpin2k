@@ -112,6 +112,8 @@ void setup() {
   if (!LittleFS.begin(false)) {
     // FSUpgrader upgrade;
     SS2K_LOG(MAIN_LOG_TAG, "An Error has occurred while mounting LittleFS.");
+    LittleFS.format();
+    vTaskDelay(100/portTICK_PERIOD_MS);
     // BEGIN FS UPGRADE SPECIFIC//
     // upgrade.upgradeFS();
     // END FS UPGRADE SPECIFIC//
@@ -253,9 +255,8 @@ void SS2K::maintenanceLoop(void *pvParameters) {
       static int _oldHR               = 0;
       static int _oldWatts            = 0;
       static double _oldTargetIncline = 0;
-      static int _oldClientCount      = 0;
       if (_oldHR == rtConfig->hr.getValue() && _oldWatts == rtConfig->watts.getValue() && _oldTargetIncline == rtConfig->getTargetIncline() &&
-          _oldClientCount == NimBLEDevice::getServer()->getConnectedCount()) {
+          NimBLEDevice::getServer()->getConnectedCount() == 0) {
         // Inactivity detected
         if (((millis() - rebootTimer) > 1800000)) {
           // Timer expired
@@ -270,7 +271,6 @@ void SS2K::maintenanceLoop(void *pvParameters) {
         _oldHR            = rtConfig->hr.getValue();
         _oldWatts         = rtConfig->watts.getValue();
         _oldTargetIncline = rtConfig->getTargetIncline();
-        _oldClientCount   = NimBLEDevice::getServer()->getConnectedCount();
         rebootTimer       = millis();
       }
 
