@@ -313,11 +313,11 @@ const char * const DEFAULT_PASSWORD = "password";
 
 //Task Stack Sizes
 #define MAIN_STACK 4500
-#define ERG_STACK 6500
+#define ERG_STACK 6000
 #define HTTP_STACK 6000
 #define BLE_COMM_STACK 6000
-#define BLE_CLIENT_STACK 5000
-#define STEPPER_STACK 1700
+#define BLE_CLIENT_STACK 5500
+#define STEPPER_STACK 2000
 
 // Uncomment to enable stack size debugging info
 // #define DEBUG_STACK
