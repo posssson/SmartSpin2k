@@ -112,6 +112,8 @@ void setup() {
   if (!LittleFS.begin(false)) {
     // FSUpgrader upgrade;
     SS2K_LOG(MAIN_LOG_TAG, "An Error has occurred while mounting LittleFS.");
+    LittleFS.format();
+    vTaskDelay(100/portTICK_PERIOD_MS);
     // BEGIN FS UPGRADE SPECIFIC//
     // upgrade.upgradeFS();
     // END FS UPGRADE SPECIFIC//
