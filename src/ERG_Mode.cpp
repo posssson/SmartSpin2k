@@ -40,7 +40,6 @@ void ergTaskLoop(void* pvParameters) {
   PowerBuffer powerBuffer;
 
   ergMode._writeLogHeader();
-  bool isInErgMode            = false;
   bool hasConnectedPowerMeter = false;
   bool simulationRunning      = false;
   int loopCounter             = 0;
@@ -48,34 +47,36 @@ void ergTaskLoop(void* pvParameters) {
   while (true) {
     // be quiet while updating via BLE
     while (ss2k->isUpdating) {
-      vTaskDelay(100);
+      vTaskDelay(ERG_MODE_DELAY / portTICK_PERIOD_MS);
     }
 
     vTaskDelay(ERG_MODE_DELAY / portTICK_PERIOD_MS);
 
-    hasConnectedPowerMeter = spinBLEClient.connectedPM;
-    simulationRunning      = rtConfig->watts.getTarget();
-    if (!simulationRunning) {
-      simulationRunning = rtConfig->watts.getSimulate();
-    }
+    if (rtConfig->cad.getValue() > 0 && rtConfig->watts.getValue() > 0) {
+      hasConnectedPowerMeter = spinBLEClient.connectedPM;
+      simulationRunning      = rtConfig->watts.getTarget();
+      if (!simulationRunning) {
+        simulationRunning = rtConfig->watts.getSimulate();
+      }
 
-    // add values to torque table
-    powerTable->processPowerValue(powerBuffer, rtConfig->cad.getValue(), rtConfig->watts);
+      // add values to torque table
+      powerTable->processPowerValue(powerBuffer, rtConfig->cad.getValue(), rtConfig->watts);
 
-    // compute ERG
-    if ((rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetPower) && (hasConnectedPowerMeter || simulationRunning)) {
-      ergMode.computeErg();
-    }
+      // compute ERG
+      if ((rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetPower) && (hasConnectedPowerMeter || simulationRunning)) {
+        ergMode.computeErg();
+      }
 
-    // resistance mode
-    if ((rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetResistanceLevel) && (rtConfig->getMaxResistance() != DEFAULT_RESISTANCE_RANGE)) {
-      ergMode.computeResistance();
-    }
+      // resistance mode
+      if ((rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetResistanceLevel) && (rtConfig->getMaxResistance() != DEFAULT_RESISTANCE_RANGE)) {
+        ergMode.computeResistance();
+      }
 
-    // Set Min and Max Stepper positions
-    if (loopCounter > 50) {
-      loopCounter = 0;
-      powerTable->setStepperMinMax();
+      // Set Min and Max Stepper positions
+      if (loopCounter > 50) {
+        loopCounter = 0;
+        powerTable->setStepperMinMax();
+      }
     }
 
     if (ss2k->resetPowerTableFlag) {
@@ -183,7 +184,7 @@ void PowerTable::setStepperMinMax() {
       // never set less than one shift above current incline.
       if ((_return <= rtConfig->getCurrentIncline()) && (rtConfig->watts.getValue() < userConfig->getMaxWatts())) {
         _return = rtConfig->getCurrentIncline() + userConfig->getShiftStep();
-         SS2K_LOG(ERG_MODE_LOG_TAG, "Max Position too close to current incline: %d", _return);
+        SS2K_LOG(ERG_MODE_LOG_TAG, "Max Position too close to current incline: %d", _return);
       }
       // never set below min step.
       if (_return <= rtConfig->getMinStep()) {
@@ -313,9 +314,8 @@ int PowerTable::lookup(int watts, int cad) {
   }
 
   int ret = (sum / count) * 100;
-  SS2K_LOG(ERG_MODE_LOG_TAG, "Lookup result: %dw %dcad %d",watts,cad, ret);
+  SS2K_LOG(ERG_MODE_LOG_TAG, "Lookup result: %dw %dcad %d", watts, cad, ret);
   return ret;
-
 }
 
 // returns class of all neighbors that are found and within expected values.
@@ -733,8 +733,8 @@ void PowerTable::clean() {
 
 void PowerTable::newEntry(PowerBuffer& powerBuffer) {
   // these are floats so that we make sure division works correctly.
-  float watts        = 0;
-  float cad          = 0;
+  float watts          = 0;
+  float cad            = 0;
   float targetPosition = 0;
 
   // First, take the power buffer and average all of the samples together.
