@@ -270,17 +270,6 @@ void SS2K::maintenanceLoop(void *pvParameters) {
         rebootTimer       = millis();
       }
 
-      // Prevent occasional runaway scans
-      if (NimBLEDevice::getScan()->isScanning()) {
-        if (isScanning == true) {
-          SS2K_LOGW(MAIN_LOG_TAG, "Forcing Scan to stop.");
-          spinBLEClient.doScan = false;
-          NimBLEDevice::getScan()->stop();
-          isScanning = false;
-        } else {
-          isScanning = true;
-        }
-      }
       intervalTimer2 = millis();
     }
 
