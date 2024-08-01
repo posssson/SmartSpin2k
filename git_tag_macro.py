@@ -17,7 +17,7 @@ branch = (
 #    )
 #else:
 tag = (
-    subprocess.check_output(["git", "describe", "--tags"])
+    subprocess.check_output(["git", "describe", "--tags", "--always"])
     .strip()
     .decode("utf-8")
     )

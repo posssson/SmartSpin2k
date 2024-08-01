@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated wiki banner.
 
 ### Changed
+- Amend always option to git describe.
 - Updated communications overview picture.
 - Updated kit purchasing links. 
 - MIN_ERG_CADENCE created and changed from 20 to 30.
