@@ -1084,6 +1084,7 @@ void ErgMode::computeResistance() {
   }
   oldResistance = rtConfig->resistance;
 }
+
 // as a note, Trainer Road sends 50w target whenever the app is connected.
 void ErgMode::computeErg() {
   Measurement newWatts = rtConfig->watts;
