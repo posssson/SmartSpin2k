@@ -1076,10 +1076,10 @@ void ErgMode::computeResistance() {
     return;
   }
 
-  int newSetPoint = rtConfig->resistance.getTarget();
   int actualDelta = rtConfig->resistance.getTarget() - rtConfig->resistance.getValue();
-  rtConfig->setTargetIncline(rtConfig->getTargetIncline() + (100 * actualDelta));
-  if (actualDelta == 0) {
+  if (actualDelta != 0) {
+    rtConfig->setTargetIncline(rtConfig->getTargetIncline() + (100 * actualDelta));
+  } else {
     rtConfig->setTargetIncline(rtConfig->getCurrentIncline());
   }
   oldResistance = rtConfig->resistance;

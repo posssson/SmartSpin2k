@@ -60,7 +60,7 @@ void collectAndSet(NimBLEUUID charUUID, NimBLEUUID serviceUUID, NimBLEAddress ad
     spinBLEClient.connectedSpeed = true;
     logBufLength += snprintf(logBuf + logBufLength, kLogBufMaxLength - logBufLength, " SD(%.2f)", fmodf(speed, 1000.0));
   }
-  
+
   if (sensorData->hasResistance()) {
     if ((rtConfig->getMaxResistance() == MAX_PELOTON_RESISTANCE) && (charUUID != PELOTON_DATA_UUID)) {
       // Peloton connected but using BLE Power Meter. So skip resistance for UUID's that aren't Peloton.
@@ -72,7 +72,7 @@ void collectAndSet(NimBLEUUID charUUID, NimBLEUUID serviceUUID, NimBLEAddress ad
   }
 
   //////adding incline so that i can plot it
-  logBufLength += snprintf(logBuf + logBufLength, kLogBufMaxLength - logBufLength, " POS(%d)", ss2k->targetPosition);
+  logBufLength += snprintf(logBuf + logBufLength, kLogBufMaxLength - logBufLength, " POS(%d)", ss2k->currentPosition);
   strncat(logBuf + logBufLength, " ]", kLogBufMaxLength - logBufLength);
 
   SS2K_LOG(BLE_COMMON_LOG_TAG, "%s", logBuf);
