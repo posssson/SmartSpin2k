@@ -216,7 +216,7 @@ int PowerTable::lookup(int watts, int cad) {
           break;
         }
       }
-      for (int i = POWERTABLE_CAD_SIZE - 1; i >=0; --i) {
+      for (int i = POWERTABLE_CAD_SIZE - 1; i >= 0; --i) {
         if (this->tableRow[i].tableEntry[wattIndex].targetPosition != INT16_MIN) {
           extrapRow2 = i;
           break;
@@ -1122,6 +1122,16 @@ void ErgMode::computeErg() {
 
 void ErgMode::_setPointChangeState(int newCadence, Measurement& newWatts) {
   int32_t tableResult = powerTable->lookup(newWatts.getTarget(), newCadence);
+
+  //Sanity check for targets 
+  if (rtConfig->watts.getValue() > newWatts.getTarget() && tableResult > rtConfig->getCurrentIncline()) {
+    tableResult = RETURN_ERROR;
+  }
+  if (rtConfig->watts.getValue() < newWatts.getTarget() && tableResult < rtConfig->getCurrentIncline()) {
+    tableResult = RETURN_ERROR;
+  }
+
+  //Handle return errors
   if (tableResult == RETURN_ERROR) {
     int wattChange  = newWatts.getTarget() - newWatts.getValue();
     float deviation = ((float)wattChange * 100.0) / ((float)newWatts.getTarget());
@@ -1142,7 +1152,7 @@ void ErgMode::_setPointChangeState(int newCadence, Measurement& newWatts) {
     i++;
   }
 
-  vTaskDelay((ERG_MODE_DELAY * 3) / portTICK_PERIOD_MS);  // Wait for power meter to register new watts
+  vTaskDelay((ERG_MODE_DELAY * 2) / portTICK_PERIOD_MS);  // Wait for power meter to register new watts
 }
 
 void ErgMode::_inSetpointState(int newCadence, Measurement& newWatts) {
