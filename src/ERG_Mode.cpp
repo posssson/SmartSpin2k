@@ -212,12 +212,14 @@ int PowerTable::lookup(int watts, int cad) {
       int extrapRow1 = -1, extrapRow2 = -1;
       for (int i = 0; i < POWERTABLE_CAD_SIZE; ++i) {
         if (this->tableRow[i].tableEntry[wattIndex].targetPosition != INT16_MIN) {
-          if (extrapRow1 == -1) {
-            extrapRow1 = i;
-          } else {
-            extrapRow2 = i;
-            break;
-          }
+          extrapRow1 = i;
+          break;
+        }
+      }
+      for (int i = POWERTABLE_CAD_SIZE - 1; i >=0; --i) {
+        if (this->tableRow[i].tableEntry[wattIndex].targetPosition != INT16_MIN) {
+          extrapRow2 = i;
+          break;
         }
       }
       if (extrapRow1 != -1 && extrapRow2 != -1) {
