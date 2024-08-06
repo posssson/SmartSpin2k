@@ -65,7 +65,7 @@ const char * const DEFAULT_PASSWORD = "password";
 #define STEPPER_ACCELERATION 3000
 
 // Stepper Max Speed in steps/s
-#define DEFAULT_STEPPER_SPEED 1500
+#define DEFAULT_STEPPER_SPEED 3500
 
 // Default ERG Sensitivity. Predicated on # of Shifts (further defined by shift steps) per 30 watts of resistance change.
 // I.E. If the difference between ERG target and Current watts were 30, and the Shift step is defined as 600 steps,

@@ -14,7 +14,7 @@
 #define ERG_MODE_LOG_CSV_TAG "ERG_Mode_CSV"
 #define POWERTABLE_LOG_TAG   "PTable"
 #define ERG_MODE_DELAY       700
-#define RETURN_ERROR         INT16_MIN
+#define RETURN_ERROR         INT32_MIN
 
 extern TaskHandle_t ErgTask;
 void setupERG();
@@ -23,7 +23,7 @@ void ergTaskLoop(void* pvParameters);
 class PowerEntry {
  public:
   int watts;
-  int targetPosition;
+  int32_t targetPosition;
   int cad;
   int readings;
 

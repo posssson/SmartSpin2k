@@ -9,32 +9,78 @@
 
 Custom Characteristic for userConfig Variable manipulation via BLE
 
-An example follows to read/write 26.3kph to simulatedSpeed:
-simulatedSpeed is a float and first needs to be converted to int by *10 for transmission, so convert 26.3kph to 263 (multiply by 10)
-Decimal 263 == hexidecimal 0107 but the data needs to be converted to LSO, MSO to match the rest of the BLE spec so 263 == 0x07, 0x01 (LSO,MSO)
+**Overview:**
+This characteristic allows for reading and writing various user configuration parameters via BLE. The format for writing and reading data follows a specific protocol.
 
-So,
+**Writing Data:**
+- Format:
+  0x02, <variable>, <LSO>, <MSO>
+  - 0x02: Operator for write
+  - <variable>: The identifier for the variable to be written
+  - <LSO>: Least significant byte of the value
+  - <MSO>: Most significant byte of the value
 
-If client wants to write (0x02) int value 263 (0x07 0x01) to simulatedSpeed(0x06):
+- Example:
+  To write 26.3 kph to simulatedSpeed:
+  - Convert 26.3 to an integer by multiplying by 10: 263
+  - Convert 263 to hexadecimal: 0x0107
+  - Swap bytes for little-endian format: 0x07, 0x01
+  - Write command: 0x02, 0x06, 0x07, 0x01
 
-Client Writes:
-0x02, 0x06, 0x07, 0x01
-(operator, variable, LSO, MSO)
+**Reading Data:**
+- Format:
+  0x01, <variable>
+  - 0x01: Operator for read
+  - <variable>: The identifier for the variable to be read
 
-Server will then indicate:
-0x80, 0x06, 0x07, 0x01
-(status, variable, LSO, MSO)
+- Example:
+  To read the value of simulatedSpeed:
+  - Read command: 0x01, 0x06
 
-Example to cc_read (0x01) from simulatedSpeed (0x06)
+**Server Response:**
+- For both read and write operations, the server responds with:
+  0x80, <variable>, <LSO>, <MSO>
+  - 0x80: Status indicating success
+  - <variable>: The identifier for the variable
+  - <LSO>: Least significant byte of the value
+  - <MSO>: Most significant byte of the value
 
-Client Writes:
-0x01, 0x06
-Server will then indicate:
-0x80, 0x06, 0x07, 0x01
- cc_success, simulatedSpeed,0x07,0x01
+**Detailed Variable Handling:**
+- Some float values are multiplied by 10 or 100 for transmission.
+- True values are > 00, and false values are 00.
 
-Pay special attention to the float values below. Since they have to be transmitted as an int, some are converted *100, others are converted *10.
-True values are >00. False are 00.
+**Examples for Other Variables:**
+
+1. Incline (0x02):
+   - Read command: 0x01, 0x02
+   - Server response for 5.5% incline:
+     - Stored as integer: 55 (multiplied by 10)
+     - Hexadecimal: 0x0037
+     - Little-endian: 0x37, 0x00
+     - Response: 0x80, 0x02, 0x37, 0x00
+
+2. Simulated Watts (0x03):
+   - Read command: 0x01, 0x03
+   - Server response for 200 watts:
+     - Integer: 200
+     - Hexadecimal: 0x00C8
+     - Little-endian: 0xC8, 0x00
+     - Response: 0x80, 0x03, 0xC8, 0x00
+
+3. Simulated Heart Rate (0x04):
+   - Read command: 0x01, 0x04
+   - Server response for 75 bpm:
+     - Integer: 75
+     - Hexadecimal: 0x004B
+     - Little-endian: 0x4B, 0x00
+     - Response: 0x80, 0x04, 0x4B, 0x00
+
+4. Device Name (0x07):
+   - Read command: 0x01, 0x07
+   - Server response for "MyDevice":
+     - ASCII for "MyDevice": 0x4D, 0x79, 0x44, 0x65, 0x76, 0x69, 0x63, 0x65
+     - Response: 0x80, 0x07, 0x4D, 0x79, 0x44, 0x65, 0x76, 0x69, 0x63, 0x65
+
 */
 
 #include <BLE_Common.h>

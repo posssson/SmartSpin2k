@@ -110,13 +110,9 @@ void setup() {
   // Initialize LittleFS
   SS2K_LOG(MAIN_LOG_TAG, "Mounting Filesystem");
   if (!LittleFS.begin(false)) {
-    // FSUpgrader upgrade;
     SS2K_LOG(MAIN_LOG_TAG, "An Error has occurred while mounting LittleFS.");
-    LittleFS.format();
-    vTaskDelay(100/portTICK_PERIOD_MS);
-    // BEGIN FS UPGRADE SPECIFIC//
-    // upgrade.upgradeFS();
-    // END FS UPGRADE SPECIFIC//
+    LittleFS.format();                     // Format so that the settings can be saved.
+    vTaskDelay(100 / portTICK_PERIOD_MS);  // Provide some time for the format to happen.
   }
 
   // Load Config
@@ -274,17 +270,6 @@ void SS2K::maintenanceLoop(void *pvParameters) {
         rebootTimer       = millis();
       }
 
-      // Prevent occasional runaway scans
-      if (NimBLEDevice::getScan()->isScanning()) {
-        if (isScanning == true) {
-          SS2K_LOGW(MAIN_LOG_TAG, "Forcing Scan to stop.");
-          spinBLEClient.doScan = false;
-          NimBLEDevice::getScan()->stop();
-          isScanning = false;
-        } else {
-          isScanning = true;
-        }
-      }
       intervalTimer2 = millis();
     }
 
@@ -400,6 +385,7 @@ void SS2K::moveStepper(void *pvParameters) {
   while (1) {
     if (stepper) {
       ss2k->stepperIsRunning = stepper->isRunning();
+      ss2k->currentPosition  = stepper->getCurrentPosition();
       if (!ss2k->externalControl) {
         if ((rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetPower) ||
             (rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetResistanceLevel)) {
@@ -436,9 +422,8 @@ void SS2K::moveStepper(void *pvParameters) {
           stepper->moveTo(rtConfig->getMaxStep());
         }
       }
-
-      vTaskDelay(100 / portTICK_PERIOD_MS);
       rtConfig->setCurrentIncline((float)stepper->getCurrentPosition());
+      vTaskDelay(100 / portTICK_PERIOD_MS);
 
       if (connectedClientCount() > 0) {
         stepper->setAutoEnable(false);  // Keep the stepper from rolling back due to head tube slack. Motor Driver still lowers power between moves

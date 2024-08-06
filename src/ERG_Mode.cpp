@@ -40,7 +40,6 @@ void ergTaskLoop(void* pvParameters) {
   PowerBuffer powerBuffer;
 
   ergMode._writeLogHeader();
-  bool isInErgMode            = false;
   bool hasConnectedPowerMeter = false;
   bool simulationRunning      = false;
   int loopCounter             = 0;
@@ -48,34 +47,36 @@ void ergTaskLoop(void* pvParameters) {
   while (true) {
     // be quiet while updating via BLE
     while (ss2k->isUpdating) {
-      vTaskDelay(100);
+      vTaskDelay(ERG_MODE_DELAY / portTICK_PERIOD_MS);
     }
 
     vTaskDelay(ERG_MODE_DELAY / portTICK_PERIOD_MS);
 
-    hasConnectedPowerMeter = spinBLEClient.connectedPM;
-    simulationRunning      = rtConfig->watts.getTarget();
-    if (!simulationRunning) {
-      simulationRunning = rtConfig->watts.getSimulate();
-    }
+    if (rtConfig->cad.getValue() > 0 && rtConfig->watts.getValue() > 0) {
+      hasConnectedPowerMeter = spinBLEClient.connectedPM;
+      simulationRunning      = rtConfig->watts.getTarget();
+      if (!simulationRunning) {
+        simulationRunning = rtConfig->watts.getSimulate();
+      }
 
-    // add values to torque table
-    powerTable->processPowerValue(powerBuffer, rtConfig->cad.getValue(), rtConfig->watts);
+      // add values to torque table
+      powerTable->processPowerValue(powerBuffer, rtConfig->cad.getValue(), rtConfig->watts);
 
-    // compute ERG
-    if ((rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetPower) && (hasConnectedPowerMeter || simulationRunning)) {
-      ergMode.computeErg();
-    }
+      // compute ERG
+      if ((rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetPower) && (hasConnectedPowerMeter || simulationRunning)) {
+        ergMode.computeErg();
+      }
 
-    // resistance mode
-    if ((rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetResistanceLevel) && (rtConfig->getMaxResistance() != DEFAULT_RESISTANCE_RANGE)) {
-      ergMode.computeResistance();
-    }
+      // resistance mode
+      if ((rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetResistanceLevel) && (rtConfig->getMaxResistance() != DEFAULT_RESISTANCE_RANGE)) {
+        ergMode.computeResistance();
+      }
 
-    // Set Min and Max Stepper positions
-    if (loopCounter > 50) {
-      loopCounter = 0;
-      powerTable->setStepperMinMax();
+      // Set Min and Max Stepper positions
+      if (loopCounter > 50) {
+        loopCounter = 0;
+        powerTable->setStepperMinMax();
+      }
     }
 
     if (ss2k->resetPowerTableFlag) {
@@ -147,7 +148,7 @@ void PowerTable::processPowerValue(PowerBuffer& powerBuffer, int cadence, Measur
 
 // Set min / max stepper position
 void PowerTable::setStepperMinMax() {
-  int _return = RETURN_ERROR;
+  int32_t _return = RETURN_ERROR;
 
   // if the FTMS device reports resistance feedback, skip estimating min_max
   if (rtConfig->resistance.getValue() > 0) {
@@ -183,7 +184,7 @@ void PowerTable::setStepperMinMax() {
       // never set less than one shift above current incline.
       if ((_return <= rtConfig->getCurrentIncline()) && (rtConfig->watts.getValue() < userConfig->getMaxWatts())) {
         _return = rtConfig->getCurrentIncline() + userConfig->getShiftStep();
-         SS2K_LOG(ERG_MODE_LOG_TAG, "Max Position too close to current incline: %d", _return);
+        SS2K_LOG(ERG_MODE_LOG_TAG, "Max Position too close to current incline: %d", _return);
       }
       // never set below min step.
       if (_return <= rtConfig->getMinStep()) {
@@ -196,7 +197,7 @@ void PowerTable::setStepperMinMax() {
   }
 }
 
-int PowerTable::lookup(int watts, int cad) {
+int32_t PowerTable::lookup(int watts, int cad) {
   int cadIndex  = round(((float)cad - (float)MINIMUM_TABLE_CAD) / (float)POWERTABLE_CAD_INCREMENT);
   int wattIndex = round((float)watts / (float)POWERTABLE_WATT_INCREMENT);
 
@@ -211,12 +212,14 @@ int PowerTable::lookup(int watts, int cad) {
       int extrapRow1 = -1, extrapRow2 = -1;
       for (int i = 0; i < POWERTABLE_CAD_SIZE; ++i) {
         if (this->tableRow[i].tableEntry[wattIndex].targetPosition != INT16_MIN) {
-          if (extrapRow1 == -1) {
-            extrapRow1 = i;
-          } else {
-            extrapRow2 = i;
-            break;
-          }
+          extrapRow1 = i;
+          break;
+        }
+      }
+      for (int i = POWERTABLE_CAD_SIZE - 1; i >= 0; --i) {
+        if (this->tableRow[i].tableEntry[wattIndex].targetPosition != INT16_MIN) {
+          extrapRow2 = i;
+          break;
         }
       }
       if (extrapRow1 != -1 && extrapRow2 != -1) {
@@ -254,7 +257,7 @@ int PowerTable::lookup(int watts, int cad) {
       }
     }
     // Not enough data.
-    return INT16_MIN;
+    return INT32_MIN;
   }
 
   // Edge cases out of the way, we should be able to interpolate.
@@ -313,9 +316,8 @@ int PowerTable::lookup(int watts, int cad) {
   }
 
   int ret = (sum / count) * 100;
-  SS2K_LOG(ERG_MODE_LOG_TAG, "Lookup result: %dw %dcad %d",watts,cad, ret);
+  SS2K_LOG(ERG_MODE_LOG_TAG, "Lookup result: %dw %dcad %d", watts, cad, ret);
   return ret;
-
 }
 
 // returns class of all neighbors that are found and within expected values.
@@ -733,8 +735,8 @@ void PowerTable::clean() {
 
 void PowerTable::newEntry(PowerBuffer& powerBuffer) {
   // these are floats so that we make sure division works correctly.
-  float watts        = 0;
-  float cad          = 0;
+  float watts          = 0;
+  float cad            = 0;
   float targetPosition = 0;
 
   // First, take the power buffer and average all of the samples together.
@@ -930,7 +932,7 @@ bool PowerTable::_manageSaveState() {
         }
         this->tableRow[i].tableEntry[j].targetPosition = savedTargetPosition;
         this->tableRow[i].tableEntry[j].readings       = savedReadings;
-        SS2K_LOG(POWERTABLE_LOG_TAG, "Position %d, %d, Target %d, Readings %d, loaded", i, j, this->tableRow[i].tableEntry[j].targetPosition,
+        //SS2K_LOG(POWERTABLE_LOG_TAG, "Position %d, %d, Target %d, Readings %d, loaded", i, j, this->tableRow[i].tableEntry[j].targetPosition,
                  this->tableRow[i].tableEntry[j].readings);
       }
     }
@@ -1076,14 +1078,15 @@ void ErgMode::computeResistance() {
     return;
   }
 
-  int newSetPoint = rtConfig->resistance.getTarget();
   int actualDelta = rtConfig->resistance.getTarget() - rtConfig->resistance.getValue();
-  rtConfig->setTargetIncline(rtConfig->getTargetIncline() + (100 * actualDelta));
-  if (actualDelta == 0) {
+  if (actualDelta != 0) {
+    rtConfig->setTargetIncline(rtConfig->getTargetIncline() + (100 * actualDelta));
+  } else {
     rtConfig->setTargetIncline(rtConfig->getCurrentIncline());
   }
   oldResistance = rtConfig->resistance;
 }
+
 // as a note, Trainer Road sends 50w target whenever the app is connected.
 void ErgMode::computeErg() {
   Measurement newWatts = rtConfig->watts;
@@ -1119,6 +1122,20 @@ void ErgMode::computeErg() {
 
 void ErgMode::_setPointChangeState(int newCadence, Measurement& newWatts) {
   int32_t tableResult = powerTable->lookup(newWatts.getTarget(), newCadence);
+
+  // Sanity check for targets
+  if (tableResult != RETURN_ERROR) {
+    if (rtConfig->watts.getValue() > newWatts.getTarget() && tableResult > rtConfig->getCurrentIncline()) {
+      SS2K_LOG(ERG_MODE_LOG_TAG, "Table Result Failed High Test: %d", tableResult);
+      tableResult = RETURN_ERROR;
+    }
+    if (rtConfig->watts.getValue() < newWatts.getTarget() && tableResult < rtConfig->getCurrentIncline()) {
+      SS2K_LOG(ERG_MODE_LOG_TAG, "Table Result Failed Low Test: %d", tableResult);
+      tableResult = RETURN_ERROR;
+    }
+  }
+
+  // Handle return errors
   if (tableResult == RETURN_ERROR) {
     int wattChange  = newWatts.getTarget() - newWatts.getValue();
     float deviation = ((float)wattChange * 100.0) / ((float)newWatts.getTarget());
@@ -1139,7 +1156,7 @@ void ErgMode::_setPointChangeState(int newCadence, Measurement& newWatts) {
     i++;
   }
 
-  vTaskDelay((ERG_MODE_DELAY * 3) / portTICK_PERIOD_MS);  // Wait for power meter to register new watts
+  vTaskDelay((ERG_MODE_DELAY * 2) / portTICK_PERIOD_MS);  // Wait for power meter to register new watts
 }
 
 void ErgMode::_inSetpointState(int newCadence, Measurement& newWatts) {
