@@ -932,7 +932,7 @@ bool PowerTable::_manageSaveState() {
         }
         this->tableRow[i].tableEntry[j].targetPosition = savedTargetPosition;
         this->tableRow[i].tableEntry[j].readings       = savedReadings;
-        SS2K_LOG(POWERTABLE_LOG_TAG, "Position %d, %d, Target %d, Readings %d, loaded", i, j, this->tableRow[i].tableEntry[j].targetPosition,
+        //SS2K_LOG(POWERTABLE_LOG_TAG, "Position %d, %d, Target %d, Readings %d, loaded", i, j, this->tableRow[i].tableEntry[j].targetPosition,
                  this->tableRow[i].tableEntry[j].readings);
       }
     }
