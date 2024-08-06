@@ -55,13 +55,13 @@ class Measurement {
 
 class RuntimeParameters {
  private:
-  float targetIncline  = 0.0;
-  float currentIncline = 0.0;
+  double targetIncline  = 0.0;
+  double currentIncline = 0.0;
   float simulatedSpeed = 0.0;
   uint8_t FTMSMode     = 0x00;
   int shifterPosition  = 0;
-  int minStep          = -DEFAULT_STEPPER_TRAVEL;
-  int maxStep          = DEFAULT_STEPPER_TRAVEL;
+  int32_t minStep          = -DEFAULT_STEPPER_TRAVEL;
+  int32_t maxStep          = DEFAULT_STEPPER_TRAVEL;
   int minResistance    = -DEFAULT_RESISTANCE_RANGE;
   int maxResistance    = DEFAULT_RESISTANCE_RANGE;
   bool simTargetWatts  = false;

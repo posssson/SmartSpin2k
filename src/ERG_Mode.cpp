@@ -148,7 +148,7 @@ void PowerTable::processPowerValue(PowerBuffer& powerBuffer, int cadence, Measur
 
 // Set min / max stepper position
 void PowerTable::setStepperMinMax() {
-  int _return = RETURN_ERROR;
+  int32_t _return = RETURN_ERROR;
 
   // if the FTMS device reports resistance feedback, skip estimating min_max
   if (rtConfig->resistance.getValue() > 0) {
@@ -197,7 +197,7 @@ void PowerTable::setStepperMinMax() {
   }
 }
 
-int PowerTable::lookup(int watts, int cad) {
+int32_t PowerTable::lookup(int watts, int cad) {
   int cadIndex  = round(((float)cad - (float)MINIMUM_TABLE_CAD) / (float)POWERTABLE_CAD_INCREMENT);
   int wattIndex = round((float)watts / (float)POWERTABLE_WATT_INCREMENT);
 
@@ -257,7 +257,7 @@ int PowerTable::lookup(int watts, int cad) {
       }
     }
     // Not enough data.
-    return INT16_MIN;
+    return INT32_MIN;
   }
 
   // Edge cases out of the way, we should be able to interpolate.
@@ -1123,15 +1123,19 @@ void ErgMode::computeErg() {
 void ErgMode::_setPointChangeState(int newCadence, Measurement& newWatts) {
   int32_t tableResult = powerTable->lookup(newWatts.getTarget(), newCadence);
 
-  //Sanity check for targets 
-  if (rtConfig->watts.getValue() > newWatts.getTarget() && tableResult > rtConfig->getCurrentIncline()) {
-    tableResult = RETURN_ERROR;
-  }
-  if (rtConfig->watts.getValue() < newWatts.getTarget() && tableResult < rtConfig->getCurrentIncline()) {
-    tableResult = RETURN_ERROR;
+  // Sanity check for targets
+  if (tableResult != RETURN_ERROR) {
+    if (rtConfig->watts.getValue() > newWatts.getTarget() && tableResult > rtConfig->getCurrentIncline()) {
+      SS2K_LOG(ERG_MODE_LOG_TAG, "Table Result Failed High Test: %d", tableResult);
+      tableResult = RETURN_ERROR;
+    }
+    if (rtConfig->watts.getValue() < newWatts.getTarget() && tableResult < rtConfig->getCurrentIncline()) {
+      SS2K_LOG(ERG_MODE_LOG_TAG, "Table Result Failed Low Test: %d", tableResult);
+      tableResult = RETURN_ERROR;
+    }
   }
 
-  //Handle return errors
+  // Handle return errors
   if (tableResult == RETURN_ERROR) {
     int wattChange  = newWatts.getTarget() - newWatts.getValue();
     float deviation = ((float)wattChange * 100.0) / ((float)newWatts.getTarget());
