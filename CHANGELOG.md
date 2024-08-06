@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Increased ERG mode sensitivity.
 - removed extra logging when loading table.
 - prevent table returns from going in the wrong direction.
+- many small bug fixes.
 
 
 ### Hardware
