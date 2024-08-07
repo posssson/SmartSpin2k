@@ -35,9 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed bug in CPS service for Wahoo app (and probably others).
 - Depreciated the SPIFFS->LittleFS upgrader.
 - Increased ERG mode sensitivity.
-- removed extra logging when loading table.
-- prevent table returns from going in the wrong direction.
-- many small bug fixes.
+- Removed extra logging when loading table.
+- Prevent table returns from going in the wrong direction.
+- Fixed bug with stepper speed not updating.
 
 ### Hardware
 - added Yesoul S3.
