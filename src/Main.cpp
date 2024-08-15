@@ -275,7 +275,9 @@ void SS2K::maintenanceLoop(void *pvParameters) {
 
     // Things to do every 20 loops
     if (loopCounter > 20) {
-      ss2k->checkDriverTemperature();
+     // Removed driver temp checking. This really doesn't do anything benificial anyway, because the thermistors in the ESP32 are not accurate.
+     // The Driver itsself will throttle automatically if the temp is too high. 
+     // ss2k->checkDriverTemperature();
 
 #ifdef DEBUG_STACK
       Serial.printf("Step Task: %d \n", uxTaskGetStackHighWaterMark(moveStepperTask));

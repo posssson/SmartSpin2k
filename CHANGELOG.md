@@ -42,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed extra logging when loading table.
 - Prevent table returns from going in the wrong direction.
 - Fixed bug with stepper speed not updating.
+- Removed driver temp checking. It's not accurate on the ESP32. 
 
 
 ### Hardware
