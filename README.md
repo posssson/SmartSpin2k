@@ -59,9 +59,11 @@ Everything you need to know is in the [SS2K Wiki](https://github.com/doudar/Smar
 ## Contributing
 1. Install Microsoft Visual Code. https://code.visualstudio.com/
 2. Install PlatformIO into Visual Code. https://platformio.org/platformio-ide
-3. Install Pre-commit. https://pre-commit.com
-4. Install pre-push git hooks: `pre-commit install --hook-type pre-push`
-5. Open this project in PlatformIO.
+3. Install Python https://www.python.org/downloads/
+4. Install Pre-commit. https://pre-commit.com `py -m pip install pre-commit`
+5. Follow any install warnings to add pre-commit to your path. 
+6. Install pre-push git hooks: `pre-commit install --hook-type pre-push`
+7. Open this project in PlatformIO.
 
 ## Important announcement for existing users
 If you experience an issue after upgrading firmware, please follow these instructions in the Wiki. Flashing instructions are available [HERE.](https://github.com/doudar/SmartSpin2k/wiki/Loading-Software)
