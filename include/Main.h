@@ -10,7 +10,7 @@
 #include "HTTP_Server_Basic.h"
 #include "SmartSpin_parameters.h"
 #include "BLE_Common.h"
-//#include "LittleFS_Upgrade.h"
+// #include "LittleFS_Upgrade.h"
 #include "boards.h"
 #include "SensorCollector.h"
 #include "SS2KLog.h"
@@ -35,6 +35,7 @@ class SS2K {
   bool externalControl;
   bool syncMode;
   int txCheck;
+  bool pelotonIsConnected;
   bool rebootFlag          = false;
   bool saveFlag            = false;
   bool resetDefaultsFlag   = false;
@@ -53,7 +54,7 @@ class SS2K {
   void setupTMCStepperDriver();
   void updateStepperPower();
   void updateStealthChop();
-  void updateStepperSpeed();
+  void updateStepperSpeed(int speed = 0);
   void checkDriverTemperature();
   void motorStop(bool releaseTension = false);
   void FTMSModeShiftModifier();
@@ -73,6 +74,7 @@ class SS2K {
     shiftersHoldForScan = SHIFTERS_HOLD_FOR_SCAN;
     scanDelayTime       = 10000;
     scanDelayStart      = 0;
+    pelotonIsConnected  = false;
     txCheck             = TX_CHECK_INTERVAL;
   }
 };

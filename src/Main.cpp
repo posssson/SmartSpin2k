@@ -199,9 +199,40 @@ void SS2K::maintenanceLoop(void *pvParameters) {
 
     // send BLE notification for any userConfig values that changed.
     BLE_ss2kCustomCharacteristic::parseNemit();
+      // If we're in ERG mode, modify shift commands to inc/dec the target watts instead.
+      ss2k->FTMSModeShiftModifier();
+    // If we have a resistance bike attached, slow down when we're close to the limits.
+    if (ss2k->pelotonIsConnected) {
+      int speed           = userConfig->getStepperSpeed();
+      float resistance    = rtConfig->resistance.getValue();
+      float maxResistance = rtConfig->getMaxResistance();
 
-    // If we're in ERG mode, modify shift commands to inc/dec the target watts instead.
-    ss2k->FTMSModeShiftModifier();
+      // Slow down when resistance is within 20% of the lower limit
+      if (resistance < (maxResistance * 0.2)) {
+        float factor = resistance / (maxResistance * 0.2);
+        speed        = static_cast<int>(factor * userConfig->getStepperSpeed());
+        if (speed < 500) {
+          speed = 500;
+        }
+        if (ss2k->targetPosition > stepper->getCurrentPosition()) {
+          speed = userConfig->getStepperSpeed();
+        }
+      }
+
+      // Slow down when resistance is within 20% of the upper limit
+      if (resistance > (maxResistance * 0.8)) {
+        float factor = (maxResistance - resistance) / (maxResistance * 0.2);
+        speed        = static_cast<int>(factor * userConfig->getStepperSpeed());
+        if (speed < 500) {
+          speed = 500;
+        }
+        if (ss2k->targetPosition < stepper->getCurrentPosition()) {
+          speed = userConfig->getStepperSpeed();
+        }
+      }
+
+      ss2k->updateStepperSpeed(speed);
+    }
 
     // if this hardware version has serial pins, check and process their data.
     if (currentBoard.auxSerialTxPin) {
@@ -275,9 +306,9 @@ void SS2K::maintenanceLoop(void *pvParameters) {
 
     // Things to do every 20 loops
     if (loopCounter > 20) {
-     // Removed driver temp checking. This really doesn't do anything benificial anyway, because the thermistors in the ESP32 are not accurate.
-     // The Driver itsself will throttle automatically if the temp is too high. 
-     // ss2k->checkDriverTemperature();
+      // Removed driver temp checking. This really doesn't do anything benificial anyway, because the thermistors in the ESP32 are not accurate.
+      // The Driver itsself will throttle automatically if the temp is too high.
+      // ss2k->checkDriverTemperature();
 
 #ifdef DEBUG_STACK
       Serial.printf("Step Task: %d \n", uxTaskGetStackHighWaterMark(moveStepperTask));
@@ -319,7 +350,7 @@ void SS2K::FTMSModeShiftModifier() {
       case FitnessMachineControlPointProcedure::SetTargetResistanceLevel:  // Resistance Mode
       {
         rtConfig->setShifterPosition(ss2k->lastShifterPosition);  // reset shifter position because we're remapping it to resistance target
-        if (rtConfig->getMaxResistance() != DEFAULT_RESISTANCE_RANGE) {
+        if (pelotonIsConnected) {
           if (rtConfig->resistance.getTarget() + shiftDelta < rtConfig->getMinResistance()) {
             rtConfig->resistance.setTarget(rtConfig->getMinResistance());
             SS2K_LOG(MAIN_LOG_TAG, "Resistance shift less than min %d", rtConfig->getMinResistance());
@@ -344,9 +375,9 @@ void SS2K::FTMSModeShiftModifier() {
             ((ss2k->targetPosition + shiftDelta * userConfig->getShiftStep()) > rtConfig->getMaxStep())) {
           SS2K_LOG(MAIN_LOG_TAG, "Shift Blocked by stepper limits.");
           rtConfig->setShifterPosition(ss2k->lastShifterPosition);
-        } else if ((rtConfig->resistance.getValue() < rtConfig->getMinResistance()) && (shiftDelta > 0)) {
+        } else if ((rtConfig->resistance.getValue() <= rtConfig->getMinResistance()) && (shiftDelta > 0)) {
           // User Shifted in the proper direction - allow
-        } else if ((rtConfig->resistance.getValue() > rtConfig->getMaxResistance()) && (shiftDelta < 0)) {
+        } else if ((rtConfig->resistance.getValue() >= rtConfig->getMaxResistance()) && (shiftDelta < 0)) {
           // User Shifted in the proper direction - allow
         } else if ((rtConfig->resistance.getValue() > rtConfig->getMinResistance()) && (rtConfig->resistance.getValue() < rtConfig->getMaxResistance())) {
           // User Shifted in bounds - allow
@@ -398,13 +429,25 @@ void SS2K::moveStepper(void *pvParameters) {
         vTaskDelay(100 / portTICK_PERIOD_MS);
       }
 
-      if (rtConfig->getMaxResistance() != DEFAULT_RESISTANCE_RANGE) {
-        if ((rtConfig->resistance.getValue() >= rtConfig->getMinResistance()) && (rtConfig->resistance.getValue() <= rtConfig->getMaxResistance())) {
+      if (ss2k->pelotonIsConnected) {
+        if ((rtConfig->resistance.getValue() > rtConfig->getMinResistance()) && (rtConfig->resistance.getValue() < rtConfig->getMaxResistance())) {
           stepper->moveTo(ss2k->targetPosition);
-        } else if (rtConfig->resistance.getValue() < rtConfig->getMinResistance()) {  // Limit Stepper to Min Resistance
-          stepper->moveTo(stepper->getCurrentPosition() + 10);
+        } else if (rtConfig->resistance.getValue() <= rtConfig->getMinResistance()) {  // Limit Stepper to Min Resistance
+          if (rtConfig->resistance.getValue() != rtConfig->getMinResistance()) {
+            stepper->moveTo(stepper->getCurrentPosition() + 20);
+          }
+          // Let the user Shift Out of this Position
+          if (ss2k->targetPosition > stepper->getCurrentPosition()) {
+            stepper->moveTo(ss2k->targetPosition);
+          }
         } else {  // Limit Stepper to Max Resistance
-          stepper->moveTo(stepper->getCurrentPosition() - 10);
+          if (rtConfig->resistance.getValue() != rtConfig->getMaxResistance()) {
+            stepper->moveTo(stepper->getCurrentPosition() - 20);
+          }
+          // Let the user Shift Out of this Position
+          if (ss2k->targetPosition < stepper->getCurrentPosition()) {
+            stepper->moveTo(ss2k->targetPosition);
+          }
         }
 
       } else {
@@ -417,7 +460,7 @@ void SS2K::moveStepper(void *pvParameters) {
         }
       }
       rtConfig->setCurrentIncline((float)stepper->getCurrentPosition());
-      vTaskDelay(100 / portTICK_PERIOD_MS);
+      vTaskDelay(50 / portTICK_PERIOD_MS);
 
       if (connectedClientCount() > 0) {
         stepper->setAutoEnable(false);  // Keep the stepper from rolling back due to head tube slack. Motor Driver still lowers power between moves
@@ -531,11 +574,13 @@ void SS2K::updateStealthChop() {
   SS2K_LOG(MAIN_LOG_TAG, "StealthChop is now %d", t_bool);
 }
 
-// Applies current stepper speed
-void SS2K::updateStepperSpeed() {
-  int t = userConfig->getStepperSpeed();
-  stepper->setSpeedInHz(t);
-  SS2K_LOG(MAIN_LOG_TAG, "StepperSpeed is now %d", t);
+// Applies userconfig stepper speed if speed not specified
+void SS2K::updateStepperSpeed(int speed) {
+  if (speed == 0) {
+    speed = userConfig->getStepperSpeed();
+    SS2K_LOG(MAIN_LOG_TAG, "StepperSpeed is now %d", speed);
+  }
+  stepper->setSpeedInHz(speed);
 }
 
 // Checks the driver temperature and throttles power if above threshold.
@@ -592,6 +637,7 @@ void SS2K::txSerial() {  // Serial.printf(" Before TX ");
     } else if (txCheck == -1) {
       txCheck = 1;
     }
+    pelotonIsConnected = false;
     rtConfig->setMinResistance(-DEFAULT_RESISTANCE_RANGE);
     rtConfig->setMaxResistance(DEFAULT_RESISTANCE_RANGE);
     txCheck++;
@@ -615,7 +661,8 @@ void SS2K::rxSerial(void) {
     auxSerialBuffer.len = auxSerial.readBytesUntil(PELOTON_FOOTER, auxSerialBuffer.data, AUX_BUF_SIZE);
     for (int i = 0; i < auxSerialBuffer.len; i++) {  // Find start of data string
       if (auxSerialBuffer.data[i] == PELOTON_HEADER) {
-        size_t newLen = auxSerialBuffer.len - i;  // find length of sub data
+        ss2k->pelotonIsConnected = true;
+        size_t newLen            = auxSerialBuffer.len - i;  // find length of sub data
         uint8_t newBuf[newLen];
         for (int j = i; j < auxSerialBuffer.len; j++) {
           newBuf[j - i] = auxSerialBuffer.data[j];
