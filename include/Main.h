@@ -53,7 +53,7 @@ class SS2K {
   void setupTMCStepperDriver();
   void updateStepperPower();
   void updateStealthChop();
-  void updateStepperSpeed();
+  void updateStepperSpeed(int speed = 0);
   void checkDriverTemperature();
   void motorStop(bool releaseTension = false);
   void FTMSModeShiftModifier();
