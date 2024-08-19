@@ -200,11 +200,8 @@ void SS2K::maintenanceLoop(void *pvParameters) {
     // send BLE notification for any userConfig values that changed.
     BLE_ss2kCustomCharacteristic::parseNemit();
 
-    // If we're in ERG mode, modify shift commands to inc/dec the target watts instead.
-    ss2k->FTMSModeShiftModifier();
-
     // If we have a resistance bike attached, slow down when we're close to the limits.
-    if (rtConfig->resistance.getValue() > 0) {
+    if (ss2k->pelotonIsConnected) {
       int speed           = userConfig->getStepperSpeed();
       float resistance    = rtConfig->resistance.getValue();
       float maxResistance = rtConfig->getMaxResistance();
@@ -216,7 +213,7 @@ void SS2K::maintenanceLoop(void *pvParameters) {
         if (speed < 500) {
           speed = 500;
         }
-        if (ss2k->targetPosition < stepper->getCurrentPosition()) {
+        if (ss2k->targetPosition > stepper->getCurrentPosition()) {
           speed = userConfig->getStepperSpeed();
         }
       }
@@ -352,7 +349,7 @@ void SS2K::FTMSModeShiftModifier() {
       case FitnessMachineControlPointProcedure::SetTargetResistanceLevel:  // Resistance Mode
       {
         rtConfig->setShifterPosition(ss2k->lastShifterPosition);  // reset shifter position because we're remapping it to resistance target
-        if (rtConfig->getMaxResistance() != DEFAULT_RESISTANCE_RANGE) {
+        if (pelotonIsConnected) {
           if (rtConfig->resistance.getTarget() + shiftDelta < rtConfig->getMinResistance()) {
             rtConfig->resistance.setTarget(rtConfig->getMinResistance());
             SS2K_LOG(MAIN_LOG_TAG, "Resistance shift less than min %d", rtConfig->getMinResistance());
@@ -413,6 +410,8 @@ void SS2K::moveStepper(void *pvParameters) {
     if (stepper) {
       ss2k->stepperIsRunning = stepper->isRunning();
       ss2k->currentPosition  = stepper->getCurrentPosition();
+      // If we're in ERG mode, modify shift commands to inc/dec the target watts instead.
+      ss2k->FTMSModeShiftModifier();
       if (!ss2k->externalControl) {
         if ((rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetPower) ||
             (rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetResistanceLevel)) {
@@ -431,17 +430,21 @@ void SS2K::moveStepper(void *pvParameters) {
         vTaskDelay(100 / portTICK_PERIOD_MS);
       }
 
-      if (rtConfig->getMaxResistance() != DEFAULT_RESISTANCE_RANGE) {
-        if ((rtConfig->resistance.getValue() >= rtConfig->getMinResistance()) && (rtConfig->resistance.getValue() <= rtConfig->getMaxResistance())) {
+      if (ss2k->pelotonIsConnected) {
+        if ((rtConfig->resistance.getValue() > rtConfig->getMinResistance()) && (rtConfig->resistance.getValue() < rtConfig->getMaxResistance())) {
           stepper->moveTo(ss2k->targetPosition);
-        } else if (rtConfig->resistance.getValue() < rtConfig->getMinResistance()) {  // Limit Stepper to Min Resistance
-          stepper->moveTo(stepper->getCurrentPosition() + 20);
+        } else if (rtConfig->resistance.getValue() <= rtConfig->getMinResistance()) {  // Limit Stepper to Min Resistance
+          if (rtConfig->resistance.getValue() != rtConfig->getMinResistance()) {
+            stepper->moveTo(stepper->getCurrentPosition() + 20);
+          }
           // Let the user Shift Out of this Position
           if (ss2k->targetPosition > stepper->getCurrentPosition()) {
             stepper->moveTo(ss2k->targetPosition);
           }
         } else {  // Limit Stepper to Max Resistance
-          stepper->moveTo(stepper->getCurrentPosition() - 20);
+          if (rtConfig->resistance.getValue() != rtConfig->getMaxResistance()) {
+            stepper->moveTo(stepper->getCurrentPosition() - 20);
+          }
           // Let the user Shift Out of this Position
           if (ss2k->targetPosition < stepper->getCurrentPosition()) {
             stepper->moveTo(ss2k->targetPosition);
@@ -458,7 +461,7 @@ void SS2K::moveStepper(void *pvParameters) {
         }
       }
       rtConfig->setCurrentIncline((float)stepper->getCurrentPosition());
-      vTaskDelay(100 / portTICK_PERIOD_MS);
+      vTaskDelay(50 / portTICK_PERIOD_MS);
 
       if (connectedClientCount() > 0) {
         stepper->setAutoEnable(false);  // Keep the stepper from rolling back due to head tube slack. Motor Driver still lowers power between moves
@@ -635,6 +638,7 @@ void SS2K::txSerial() {  // Serial.printf(" Before TX ");
     } else if (txCheck == -1) {
       txCheck = 1;
     }
+    pelotonIsConnected = false;
     rtConfig->setMinResistance(-DEFAULT_RESISTANCE_RANGE);
     rtConfig->setMaxResistance(DEFAULT_RESISTANCE_RANGE);
     txCheck++;
@@ -658,7 +662,8 @@ void SS2K::rxSerial(void) {
     auxSerialBuffer.len = auxSerial.readBytesUntil(PELOTON_FOOTER, auxSerialBuffer.data, AUX_BUF_SIZE);
     for (int i = 0; i < auxSerialBuffer.len; i++) {  // Find start of data string
       if (auxSerialBuffer.data[i] == PELOTON_HEADER) {
-        size_t newLen = auxSerialBuffer.len - i;  // find length of sub data
+        ss2k->pelotonIsConnected = true;
+        size_t newLen            = auxSerialBuffer.len - i;  // find length of sub data
         uint8_t newBuf[newLen];
         for (int j = i; j < auxSerialBuffer.len; j++) {
           newBuf[j - i] = auxSerialBuffer.data[j];

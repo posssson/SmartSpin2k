@@ -67,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tightened up tolerances on the case. 
 - Increased gear spacing by .1mm
 - Reduced bearing clearance by .15mm
+- Added Stryde Bike.
 
 
 ## [23.6.28]
