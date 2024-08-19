@@ -412,8 +412,6 @@ void SS2K::moveStepper(void *pvParameters) {
     if (stepper) {
       ss2k->stepperIsRunning = stepper->isRunning();
       ss2k->currentPosition  = stepper->getCurrentPosition();
-      // If we're in ERG mode, modify shift commands to inc/dec the target watts instead.
-      ss2k->FTMSModeShiftModifier();
       if (!ss2k->externalControl) {
         if ((rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetPower) ||
             (rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetResistanceLevel)) {
