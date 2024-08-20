@@ -199,8 +199,9 @@ void SS2K::maintenanceLoop(void *pvParameters) {
 
     // send BLE notification for any userConfig values that changed.
     BLE_ss2kCustomCharacteristic::parseNemit();
-      // If we're in ERG mode, modify shift commands to inc/dec the target watts instead.
-      ss2k->FTMSModeShiftModifier();
+
+    // If we're in ERG mode, modify shift commands to inc/dec the target watts instead.
+    ss2k->FTMSModeShiftModifier();
     // If we have a resistance bike attached, slow down when we're close to the limits.
     if (ss2k->pelotonIsConnected) {
       int speed           = userConfig->getStepperSpeed();
