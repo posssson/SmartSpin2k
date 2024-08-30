@@ -21,9 +21,9 @@ void BLE_Heart_Service::setupService(NimBLEServer *pServer, MyCallbacks *chrCall
 }
 
 void BLE_Heart_Service::update() {
-  if (!spinBLEServer.clientSubscribed.Heartrate) {
+  /*if (!spinBLEServer.clientSubscribed.Heartrate) {
     return;
-  }
+  }*/
   byte heartRateMeasurement[2] = {0x00, (byte)rtConfig->hr.getValue()};
   heartRateMeasurementCharacteristic->setValue(heartRateMeasurement, 2);
   heartRateMeasurementCharacteristic->notify();

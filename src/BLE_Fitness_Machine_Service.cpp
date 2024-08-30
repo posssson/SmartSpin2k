@@ -64,9 +64,9 @@ void BLE_Fitness_Machine_Service::setupService(NimBLEServer *pServer, MyCallback
 
 void BLE_Fitness_Machine_Service::update() {
   this->processFTMSWrite();
-  if (!spinBLEServer.clientSubscribed.IndoorBikeData) {
+  /*if (!spinBLEServer.clientSubscribed.IndoorBikeData) {
     return;
-  }
+  }*/
   float cadRaw      = rtConfig->cad.getValue();
   int cad           = static_cast<int>(cadRaw * 2);
   int watts         = rtConfig->watts.getValue();
