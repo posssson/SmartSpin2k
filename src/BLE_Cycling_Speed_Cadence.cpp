@@ -21,9 +21,9 @@ void BLE_Cycling_Speed_Cadence::setupService(NimBLEServer *pServer, MyCallbacks 
 }
 
 void BLE_Cycling_Speed_Cadence::update() {
-  if (!spinBLEServer.clientSubscribed.CyclingSpeedCadence) {
+  /*if (!spinBLEServer.clientSubscribed.CyclingSpeedCadence) {
     return;
-  }
+  }*/
 
   CscMeasurement csc;
 

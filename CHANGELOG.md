@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed bug with stepper speed not updating.
 - Removed driver temp checking. It's not accurate on the ESP32. 
 - Peloton resistance limit enhancements.
+- Continue updating power metrics to other clients if one client disconnects.
 
 
 ### Hardware

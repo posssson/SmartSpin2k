@@ -182,6 +182,7 @@ void MyCallbacks::onSubscribe(NimBLECharacteristic *pCharacteristic, ble_gap_con
   SS2K_LOG(BLE_SERVER_LOG_TAG, "%s", str.c_str());
 }
 
+//This might be worth depreciating. With multiple clients connected (SS2k App, + Training App), it at least needs to be an int, not a bool. 
 void SpinBLEServer::setClientSubscribed(NimBLEUUID pUUID, bool subscribe) {
   if (pUUID == HEARTCHARACTERISTIC_UUID) {
     spinBLEServer.clientSubscribed.Heartrate = subscribe;

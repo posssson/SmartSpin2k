@@ -24,9 +24,9 @@ void BLE_Cycling_Power_Service::setupService(NimBLEServer *pServer, MyCallbacks 
 }
 
 void BLE_Cycling_Power_Service::update() {
-  if (!spinBLEServer.clientSubscribed.CyclingPowerMeasurement) {
+  /*if (!spinBLEServer.clientSubscribed.CyclingPowerMeasurement) {
     return;
-  }
+  }*/
   int power     = rtConfig->watts.getValue();
   float cadence = rtConfig->cad.getValue();
 
