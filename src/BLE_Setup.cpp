@@ -17,16 +17,6 @@ void setupBLE() {  // Common BLE setup for both client and server
   BLEDevice::setMTU(515);  //-- enabling this is very important for BLE firmware updates.
   spinBLEClient.start();
   startBLEServer();
-
-  xTaskCreatePinnedToCore(BLECommunications,      /* Task function. */
-                          "BLECommunicationTask", /* name of task. */
-                          BLE_COMM_STACK,         /* Stack size of task*/
-                          NULL,                   /* parameter of the task */
-                          3,                      /* priority of the task*/
-                          &BLECommunicationTask,  /* Task handle to keep track of created task */
-                          1);                     /* pin task to core */
-
-  SS2K_LOG(BLE_SETUP_LOG_TAG, "BLE Notify Task Started");
   SS2K_LOG(BLE_SETUP_LOG_TAG, "%s %s %s", userConfig->getConnectedPowerMeter(), userConfig->getConnectedHeartMonitor(), userConfig->getConnectedRemote());
   SS2K_LOG(BLE_SETUP_LOG_TAG, "End BLE Setup");
 }

@@ -33,11 +33,9 @@
 
 // Setup
 void setupBLE();
-extern TaskHandle_t BLECommunicationTask;
 extern TaskHandle_t BLEClientTask;
 // ***********************Common**********************************
-void BLECommunications(void *pvParameters);
-
+void BLECommunications();
 // *****************************Server****************************
 class MyServerCallbacks : public NimBLEServerCallbacks {
  public:

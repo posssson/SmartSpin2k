@@ -21,16 +21,14 @@ PowerTable* powerTable = new PowerTable;
 // Create a torque table representing 0w-1000w in 50w increments.
 // i.e. powerTable[1] corresponds to the incline required for 50w. powerTable[2] is the incline required for 100w and so on.
 
+static unsigned long int ergTimer = millis();
+
 void PowerTable::runERG() {
   static ErgMode ergMode;
   static PowerBuffer powerBuffer;
-
-  // ergMode._writeLogHeader();
   static bool hasConnectedPowerMeter = false;
   static bool simulationRunning      = false;
   static int loopCounter             = 0;
-
-  static unsigned long int ergTimer = millis();
 
   if ((millis() - ergTimer) > ERG_MODE_DELAY) {
     // reset the timer.
@@ -1129,17 +1127,15 @@ void ErgMode::_setPointChangeState(int newCadence, Measurement& newWatts) {
   SS2K_LOG(ERG_MODE_LOG_TAG, "SetPoint changed:%dw PowerTable Result: %d", newWatts.getTarget(), tableResult);
   _updateValues(newCadence, newWatts, tableResult);
 
-  int i = 0;
-  while (rtConfig->getTargetIncline() != rtConfig->getCurrentIncline()) {  // wait while the knob moves to target position.
-    vTaskDelay(100 / portTICK_PERIOD_MS);
-    if (i > 50) {  // failsafe for infinite loop
-      SS2K_LOG(ERG_MODE_LOG_TAG, "Stepper didn't reach target position");
-      break;
+  if (rtConfig->getTargetIncline() != rtConfig->getCurrentIncline()) {  // add some time to wait while the knob moves to target position.
+    int timeToAdd = abs(rtConfig->getCurrentIncline() - rtConfig->getTargetIncline());
+    if (timeToAdd > 5000) {  // 5 seconds
+      SS2K_LOG(ERG_MODE_LOG_TAG, "Capping ERG seek time to 5 seconds");
+      timeToAdd = 5000;
     }
-    i++;
+    ergTimer += timeToAdd;
   }
-
-  vTaskDelay((ERG_MODE_DELAY * 2) / portTICK_PERIOD_MS);  // Wait for power meter to register new watts
+  ergTimer += (ERG_MODE_DELAY * 2);  // Wait for power meter to register new watts
 }
 
 void ErgMode::_inSetpointState(int newCadence, Measurement& newWatts) {

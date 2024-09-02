@@ -189,8 +189,7 @@ void HTTP_Server::start() {
     SS2K_LOG(HTTP_SERVER_LOG_TAG, "Rebooting from Web Request");
     String response = "Rebooting....<script> setTimeout(\"location.href = 'http://" + myIP.toString() + "/index.html';\",500); </script>";
     server.send(200, "text/html", response);
-    vTaskDelay(100 / portTICK_PERIOD_MS);
-    ESP.restart();
+    ss2k->rebootFlag = true;
   });
 
   server.on("/hrslider", []() {
@@ -365,8 +364,7 @@ void HTTP_Server::start() {
               server.send(200, "text/plain", "Littlefs Uploaded Successfully. Rebooting...");
               userConfig->saveToLittleFS();
               userPWC->saveToLittleFS();
-              vTaskDelay(100);
-              ESP.restart();
+              ss2k->rebootFlag == true;
             } else {
               Update.printError(Serial);
             }
@@ -413,7 +411,7 @@ void HTTP_Server::start() {
 void HTTP_Server::webClientUpdate() {
   static unsigned long int _webClientTimer = millis();
   if (millis() - _webClientTimer > WEBSERVER_DELAY) {
-    _webClientTimer                 = millis();
+    _webClientTimer                = millis();
     static unsigned long mDnsTimer = millis();  // NOLINT: There is no overload in String for uint64_t
     server.handleClient();
     if (WiFi.getMode() != WIFI_MODE_STA) {
@@ -644,8 +642,7 @@ void HTTP_Server::settingsProcessor() {
         "setTimeout(\"location.href = 'http://" +
         myIP.toString() + "/bluetoothscanner.html';\",5000);</script></html>";
     server.send(200, "text/html", response);
-    vTaskDelay(100 / portTICK_PERIOD_MS);
-    ESP.restart();
+    ss2k->rebootFlag = true;
   }
   server.send(200, "text/html", response);
 }

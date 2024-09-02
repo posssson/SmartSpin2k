@@ -51,9 +51,7 @@ WebSocketAppender webSocketAppender;
 void SS2K::startTasks() {
   SS2K_LOG(MAIN_LOG_TAG, "Start BLE + ERG Tasks");
   spinBLEClient.intentionalDisconnect = 0;
-  if (BLECommunicationTask == NULL) {
-    setupBLE();
-  }
+  setupBLE();
 }
 
 void SS2K::stopTasks() {
@@ -65,10 +63,6 @@ void SS2K::stopTasks() {
     ss2k->stopTasks();
   }
   SS2K_LOG(MAIN_LOG_TAG, "Stop BLE + ERG Tasks");
-  if (BLECommunicationTask != NULL) {
-    vTaskDelete(BLECommunicationTask);
-    BLECommunicationTask = NULL;
-  }
   if (BLEClientTask != NULL) {
     vTaskDelete(BLEClientTask);
     BLEClientTask = NULL;
@@ -180,6 +174,8 @@ void SS2K::maintenanceLoop(void *pvParameters) {
   while (true) {
     vTaskDelay(5 / portTICK_RATE_MS);
 
+    // Run what used to be in the BLECommunications Task.
+    BLECommunications();
     // send BLE notification for any userConfig values that changed.
     BLE_ss2kCustomCharacteristic::parseNemit();
     // Run What used to be in the Stepper Task.
@@ -231,6 +227,7 @@ void SS2K::maintenanceLoop(void *pvParameters) {
     // Handle flag set for rebooting
     if (ss2k->rebootFlag) {
       static bool _loopOnce = false;
+      vTaskDelay(1000 / portTICK_RATE_MS);
       // Let the main task loop complete once before rebooting
       if (_loopOnce) {
         // Important to keep this delay high in order to allow coms to finish.
@@ -437,8 +434,7 @@ void SS2K::moveStepper() {
       }
     }
     rtConfig->setCurrentIncline((float)stepper->getCurrentPosition());
-    vTaskDelay(50 / portTICK_PERIOD_MS);
-
+    
     if (connectedClientCount() > 0) {
       stepper->setAutoEnable(false);  // Keep the stepper from rolling back due to head tube slack. Motor Driver still lowers power between moves
       stepper->enableOutputs();
