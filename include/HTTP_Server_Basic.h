@@ -25,7 +25,7 @@ class HTTP_Server {
   static void handleHrSlider();
   static void FirmwareUpdate();
   
-  static void webClientUpdate(void *pvParameters);
+  static void webClientUpdate();
 
   HTTP_Server() { internetConnection = false; }
 };

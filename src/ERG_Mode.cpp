@@ -16,41 +16,29 @@
 #include <limits>
 #include <numeric>
 
-TaskHandle_t ErgTask;
 PowerTable* powerTable = new PowerTable;
 
 // Create a torque table representing 0w-1000w in 50w increments.
 // i.e. powerTable[1] corresponds to the incline required for 50w. powerTable[2] is the incline required for 100w and so on.
 
-void setupERG() {
-  SS2K_LOG(ERG_MODE_LOG_TAG, "Starting ERG Mode task...");
-  xTaskCreatePinnedToCore(ergTaskLoop,    /* Task function. */
-                          "FTMSModeTask", /* name of task. */
-                          ERG_STACK,      /* Stack size of task*/
-                          NULL,           /* parameter of the task */
-                          1,              /* priority of the task*/
-                          &ErgTask,       /* Task handle to keep track of created task */
-                          0);             /* pin task to core 0 */
+void PowerTable::runERG() {
+  static ErgMode ergMode;
+  static PowerBuffer powerBuffer;
 
-  SS2K_LOG(ERG_MODE_LOG_TAG, "ERG Mode task started");
-}
+  // ergMode._writeLogHeader();
+  static bool hasConnectedPowerMeter = false;
+  static bool simulationRunning      = false;
+  static int loopCounter             = 0;
 
-void ergTaskLoop(void* pvParameters) {
-  ErgMode ergMode;
-  PowerBuffer powerBuffer;
+  static unsigned long int ergTimer = millis();
 
-  ergMode._writeLogHeader();
-  bool hasConnectedPowerMeter = false;
-  bool simulationRunning      = false;
-  int loopCounter             = 0;
-
-  while (true) {
+  if ((millis() - ergTimer) > ERG_MODE_DELAY) {
+    // reset the timer.
+    ergTimer = millis();
     // be quiet while updating via BLE
-    while (ss2k->isUpdating) {
-      vTaskDelay(ERG_MODE_DELAY / portTICK_PERIOD_MS);
+    if (ss2k->isUpdating) {
+      return;
     }
-
-    vTaskDelay(ERG_MODE_DELAY / portTICK_PERIOD_MS);
 
     if (rtConfig->cad.getValue() > 0 && rtConfig->watts.getValue() > 0) {
       hasConnectedPowerMeter = spinBLEClient.connectedPM;
@@ -82,12 +70,7 @@ void ergTaskLoop(void* pvParameters) {
     if (ss2k->resetPowerTableFlag) {
       powerTable->reset();
     }
-
     loopCounter++;
-
-#ifdef DEBUG_STACK
-    Serial.printf("ERG Task: %d \n", uxTaskGetStackHighWaterMark(ErgTask));
-#endif  // DEBUG_STACK
   }
 }
 
@@ -932,8 +915,8 @@ bool PowerTable::_manageSaveState() {
         }
         this->tableRow[i].tableEntry[j].targetPosition = savedTargetPosition;
         this->tableRow[i].tableEntry[j].readings       = savedReadings;
-        //SS2K_LOG(POWERTABLE_LOG_TAG, "Position %d, %d, Target %d, Readings %d, loaded", i, j, this->tableRow[i].tableEntry[j].targetPosition,
-        //         this->tableRow[i].tableEntry[j].readings);
+        // SS2K_LOG(POWERTABLE_LOG_TAG, "Position %d, %d, Target %d, Readings %d, loaded", i, j, this->tableRow[i].tableEntry[j].targetPosition,
+        //          this->tableRow[i].tableEntry[j].readings);
       }
     }
 

@@ -11,10 +11,10 @@
 #define AUTO_FIRMWARE_UPDATE true
 
 // Default Bluetooth WiFi and MDNS Name
-const char * const DEVICE_NAME  = "SmartSpin2k";
+const char* const DEVICE_NAME = "SmartSpin2k";
 
 // Default WiFi Password
-const char * const DEFAULT_PASSWORD = "password";
+const char* const DEFAULT_PASSWORD = "password";
 
 // default URL To get Updates From.
 // If changed you'll also need to get a root certificate from the new server
@@ -38,7 +38,7 @@ const char * const DEFAULT_PASSWORD = "password";
 // name of local file to save Physical Working Capacity in LittleFS
 #define userPWCFILENAME "/userPWC.txt"
 
-// name of the local file to save the torque table. 
+// name of the local file to save the torque table.
 #define POWER_TABLE_FILENAME "/PowerTable.txt"
 
 // Default Incline Multiplier.
@@ -80,13 +80,13 @@ const char * const DEFAULT_PASSWORD = "password";
 // Amount to change watt target per shift in ERG mode.
 #define ERG_PER_SHIFT 10
 
-//Pass all of the FTMS commands sent to SS2k down to a connected FTMS device. 
+// Pass all of the FTMS commands sent to SS2k down to a connected FTMS device.
 #define FTMS_PASSTHROUGH false
 
 // Use internal ERG control on external FTMS Trainer.
-//#define INTERNAL_ERG_4EXT_FTMS
+// #define INTERNAL_ERG_4EXT_FTMS
 
-//Minimum cadence where ERG mode stops.
+// Minimum cadence where ERG mode stops.
 #define MIN_ERG_CADENCE 30
 
 // Default Min Watts to stop stepper.
@@ -268,7 +268,7 @@ const char * const DEFAULT_PASSWORD = "password";
 // Size of increments (in watts) for the ERG Lookup Table. This needs to be a decimal for proper calculation.
 #define POWERTABLE_WATT_INCREMENT 30
 
-// Size of increments (in CAD) for the ERG Lookup Table. This needs to be a decimal for proper calculation. 
+// Size of increments (in CAD) for the ERG Lookup Table. This needs to be a decimal for proper calculation.
 #define POWERTABLE_CAD_INCREMENT 5
 
 // Number of similar power samples to take before writing to the Power Table
@@ -283,8 +283,8 @@ const char * const DEFAULT_PASSWORD = "password";
 // Where does the CAD portion of the table start?
 #define MINIMUM_TABLE_CAD 60
 
-//Minimum positions recorded in the active table before attempting to load the saved table.
-//Increase this value if the offset for the loaded table is inaccurate.
+// Minimum positions recorded in the active table before attempting to load the saved table.
+// Increase this value if the offset for the loaded table is inaccurate.
 #define MINIMUM_RELIABLE_POSITIONS 3
 
 // Temperature of the ESP32 at which to start reducing the power output of the stepper motor driver.
@@ -303,7 +303,7 @@ const char * const DEFAULT_PASSWORD = "password";
 #define BLE_RECONNECT_INTERVAL 1
 
 // Interval for polling ble battery updates
-#define BATTERY_UPDATE_INTERVAL_MILLIS 300000 
+#define BATTERY_UPDATE_INTERVAL_MILLIS 300000
 
 // Initial and web scan duration.
 #define DEFAULT_SCAN_DURATION 5
@@ -311,13 +311,10 @@ const char * const DEFAULT_PASSWORD = "password";
 // BLE automatic reconnect duration. Set this low to avoid interruption.
 #define BLE_RECONNECT_SCAN_DURATION 5
 
-//Task Stack Sizes
-#define MAIN_STACK 4500
-#define ERG_STACK 6000
-#define HTTP_STACK 6000
-#define BLE_COMM_STACK 6000
+// Task Stack Sizes
+#define MAIN_STACK       5000
+#define BLE_COMM_STACK   6000
 #define BLE_CLIENT_STACK 5500
-#define STEPPER_STACK 2000
 
 // Uncomment to enable stack size debugging info
 // #define DEBUG_STACK

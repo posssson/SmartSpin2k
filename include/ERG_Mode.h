@@ -16,10 +16,6 @@
 #define ERG_MODE_DELAY       700
 #define RETURN_ERROR         INT32_MIN
 
-extern TaskHandle_t ErgTask;
-void setupERG();
-void ergTaskLoop(void* pvParameters);
-
 class PowerEntry {
  public:
   int watts;
@@ -94,6 +90,9 @@ class TestResults {
 class PowerTable {
  public:
   TableRow tableRow[POWERTABLE_CAD_SIZE];
+
+  // What used to be in the ERGTaskLoop(). This is the main control function for ERG Mode and the powertable operations.
+  void runERG();
 
   // Pick up new power value and put them into the power table
   void processPowerValue(PowerBuffer& powerBuffer, int cadence, Measurement power);
