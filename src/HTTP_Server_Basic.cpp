@@ -26,8 +26,6 @@
 
 File fsUploadFile;
 
-TaskHandle_t webClientTask;
-
 IPAddress myIP;
 
 // DNS server
@@ -55,7 +53,7 @@ void _staSetup() {
 void _APSetup() {
   // WiFi.eraseAP(); //Needed if we switch back to espressif32 @6.5.0
   WiFi.mode(WIFI_AP);
-  WiFi.setHostname("reset"); // Fixes a bug when switching Arduino Core Versions
+  WiFi.setHostname("reset");  // Fixes a bug when switching Arduino Core Versions
   WiFi.softAPsetHostname("reset");
   WiFi.setHostname(userConfig->getDeviceName());
   WiFi.softAPsetHostname(userConfig->getDeviceName());
@@ -191,8 +189,7 @@ void HTTP_Server::start() {
     SS2K_LOG(HTTP_SERVER_LOG_TAG, "Rebooting from Web Request");
     String response = "Rebooting....<script> setTimeout(\"location.href = 'http://" + myIP.toString() + "/index.html';\",500); </script>";
     server.send(200, "text/html", response);
-    vTaskDelay(100 / portTICK_PERIOD_MS);
-    ESP.restart();
+    ss2k->rebootFlag = true;
   });
 
   server.on("/hrslider", []() {
@@ -367,8 +364,7 @@ void HTTP_Server::start() {
               server.send(200, "text/plain", "Littlefs Uploaded Successfully. Rebooting...");
               userConfig->saveToLittleFS();
               userPWC->saveToLittleFS();
-              vTaskDelay(100);
-              ESP.restart();
+              ss2k->rebootFlag == true;
             } else {
               Update.printError(Serial);
             }
@@ -399,14 +395,6 @@ void HTTP_Server::start() {
   /********************************************End Server
    * Handlers*******************************/
 
-  xTaskCreatePinnedToCore(HTTP_Server::webClientUpdate,             /* Task function. */
-                          "webClientUpdate",                        /* name of task. */
-                          HTTP_STACK + (DEBUG_LOG_BUFFER_SIZE * 2), /* Stack size of task Used to be 3000*/
-                          NULL,                                     /* parameter of the task */
-                          10,                                       /* priority of the task */
-                          &webClientTask,                           /* Task handle to keep track of created task */
-                          0);                                       /* pin task to core */
-
 #ifdef USE_TELEGRAM
   xTaskCreatePinnedToCore(telegramUpdate,   /* Task function. */
                           "telegramUpdate", /* name of task. */
@@ -420,11 +408,12 @@ void HTTP_Server::start() {
   SS2K_LOG(HTTP_SERVER_LOG_TAG, "HTTP server started");
 }
 
-void HTTP_Server::webClientUpdate(void *pvParameters) {
-  static unsigned long mDnsTimer = millis();  // NOLINT: There is no overload in String for uint64_t
-  for (;;) {
+void HTTP_Server::webClientUpdate() {
+  static unsigned long int _webClientTimer = millis();
+  if (millis() - _webClientTimer > WEBSERVER_DELAY) {
+    _webClientTimer                = millis();
+    static unsigned long mDnsTimer = millis();  // NOLINT: There is no overload in String for uint64_t
     server.handleClient();
-    vTaskDelay(WEBSERVER_DELAY / portTICK_RATE_MS);
     if (WiFi.getMode() != WIFI_MODE_STA) {
       dnsServer.processNextRequest();
     }
@@ -432,14 +421,11 @@ void HTTP_Server::webClientUpdate(void *pvParameters) {
     if ((millis() - mDnsTimer) > 30000) {
       MDNS.addServiceTxt("http", "_tcp", "lf", String(mDnsTimer));
       mDnsTimer = millis();
-#ifdef DEBUG_STACK
-      Serial.printf("HttpServer: %d \n", uxTaskGetStackHighWaterMark(webClientTask));
-#endif  // DEBUG_STACK
     }
   }
 }
 
-void HTTP_Server::handleBTScanner(){
+void HTTP_Server::handleBTScanner() {
   spinBLEClient.doScan = true;
   handleLittleFSFile();
 }
@@ -656,8 +642,7 @@ void HTTP_Server::settingsProcessor() {
         "setTimeout(\"location.href = 'http://" +
         myIP.toString() + "/bluetoothscanner.html';\",5000);</script></html>";
     server.send(200, "text/html", response);
-    vTaskDelay(100 / portTICK_PERIOD_MS);
-    ESP.restart();
+    ss2k->rebootFlag = true;
   }
   server.send(200, "text/html", response);
 }

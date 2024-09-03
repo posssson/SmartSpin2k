@@ -58,7 +58,8 @@ static void onNotify(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t 
   }
 }
 
-// BLE Client loop task
+// BLE Client loop task.
+// Manages device connections and scanning.
 void bleClientTask(void *pvParameters) {
   long int scanDelay = millis();
   for (;;) {

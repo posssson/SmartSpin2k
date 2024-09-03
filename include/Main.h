@@ -43,10 +43,10 @@ class SS2K {
   bool isUpdating          = false;
 
   bool IRAM_ATTR deBounce();
-  static void IRAM_ATTR moveStepper(void *pvParameters);
   static void IRAM_ATTR maintenanceLoop(void *pvParameters);
   static void IRAM_ATTR shiftUp();
   static void IRAM_ATTR shiftDown();
+  static void moveStepper();
   void resetIfShiftersHeld();
   void startTasks();
   void stopTasks();

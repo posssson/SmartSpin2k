@@ -30,7 +30,6 @@ AuxSerialBuffer auxSerialBuffer;
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *stepper     = NULL;
 
-TaskHandle_t moveStepperTask;
 TaskHandle_t maintenanceLoopTask;
 
 Boards boards;
@@ -52,12 +51,7 @@ WebSocketAppender webSocketAppender;
 void SS2K::startTasks() {
   SS2K_LOG(MAIN_LOG_TAG, "Start BLE + ERG Tasks");
   spinBLEClient.intentionalDisconnect = 0;
-  if (BLECommunicationTask == NULL) {
-    setupBLE();
-  }
-  if (ErgTask == NULL) {
-    setupERG();
-  }
+  setupBLE();
 }
 
 void SS2K::stopTasks() {
@@ -69,14 +63,6 @@ void SS2K::stopTasks() {
     ss2k->stopTasks();
   }
   SS2K_LOG(MAIN_LOG_TAG, "Stop BLE + ERG Tasks");
-  if (BLECommunicationTask != NULL) {
-    vTaskDelete(BLECommunicationTask);
-    BLECommunicationTask = NULL;
-  }
-  if (ErgTask != NULL) {
-    vTaskDelete(ErgTask);
-    ErgTask = NULL;
-  }
   if (BLEClientTask != NULL) {
     vTaskDelete(BLEClientTask);
     BLEClientTask = NULL;
@@ -149,14 +135,6 @@ void setup() {
   disableCore0WDT();  // Disable the watchdog timer on core 0 (so long stepper
                       // moves don't cause problems)
 
-  xTaskCreatePinnedToCore(SS2K::moveStepper,     /* Task function. */
-                          "moveStepperFunction", /* name of task. */
-                          STEPPER_STACK,         /* Stack size of task */
-                          NULL,                  /* parameter of the task */
-                          18,                    /* priority of the task */
-                          &moveStepperTask,      /* Task handle to keep track of created task */
-                          0);                    /* pin task to core */
-
   digitalWrite(LED_PIN, HIGH);
 
   // Configure and Initialize Logger
@@ -188,18 +166,24 @@ void loop() {  // Delete this task so we can make one that's more memory efficie
 }
 
 void SS2K::maintenanceLoop(void *pvParameters) {
-  static int loopCounter              = 0;
   static unsigned long intervalTimer  = millis();
   static unsigned long intervalTimer2 = millis();
   static unsigned long rebootTimer    = millis();
   static bool isScanning              = false;
 
   while (true) {
-    vTaskDelay(73 / portTICK_RATE_MS);
+    vTaskDelay(5 / portTICK_RATE_MS);
 
+    // Run what used to be in the BLECommunications Task.
+    BLECommunications();
     // send BLE notification for any userConfig values that changed.
     BLE_ss2kCustomCharacteristic::parseNemit();
-
+    // Run What used to be in the Stepper Task.
+    ss2k->moveStepper();
+    // Run what used to be in the ERG Mode Task.
+    powerTable->runERG();
+    // Run what used to be in the WebClient Task.
+    httpServer.webClientUpdate();
     // If we're in ERG mode, modify shift commands to inc/dec the target watts instead.
     ss2k->FTMSModeShiftModifier();
     // If we have a resistance bike attached, slow down when we're close to the limits.
@@ -243,6 +227,7 @@ void SS2K::maintenanceLoop(void *pvParameters) {
     // Handle flag set for rebooting
     if (ss2k->rebootFlag) {
       static bool _loopOnce = false;
+      vTaskDelay(1000 / portTICK_RATE_MS);
       // Let the main task loop complete once before rebooting
       if (_loopOnce) {
         // Important to keep this delay high in order to allow coms to finish.
@@ -302,24 +287,14 @@ void SS2K::maintenanceLoop(void *pvParameters) {
         rebootTimer       = millis();
       }
 
-      intervalTimer2 = millis();
-    }
-
-    // Things to do every 20 loops
-    if (loopCounter > 20) {
-      // Removed driver temp checking. This really doesn't do anything benificial anyway, because the thermistors in the ESP32 are not accurate.
-      // The Driver itsself will throttle automatically if the temp is too high.
-      // ss2k->checkDriverTemperature();
-
 #ifdef DEBUG_STACK
-      Serial.printf("Step Task: %d \n", uxTaskGetStackHighWaterMark(moveStepperTask));
       Serial.printf("Main Task: %d \n", uxTaskGetStackHighWaterMark(maintenanceLoopTask));
       Serial.printf("Free Heap: %d \n", ESP.getFreeHeap());
       Serial.printf("Best Blok: %d \n", heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
 #endif  // DEBUG_STACK
-      loopCounter = 0;
+
+      intervalTimer2 = millis();
     }
-    loopCounter++;
   }
 }
 
@@ -405,78 +380,74 @@ void SS2K::restartWifi() {
   httpServer.start();
 }
 
-void SS2K::moveStepper(void *pvParameters) {
+void SS2K::moveStepper() {
   bool _stepperDir = userConfig->getStepperDir();
-
-  while (1) {
-    if (stepper) {
-      ss2k->stepperIsRunning = stepper->isRunning();
-      ss2k->currentPosition  = stepper->getCurrentPosition();
-      if (!ss2k->externalControl) {
-        if ((rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetPower) ||
-            (rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetResistanceLevel)) {
-          ss2k->targetPosition = rtConfig->getTargetIncline();
-        } else {
-          // Simulation Mode
-          ss2k->targetPosition = rtConfig->getShifterPosition() * userConfig->getShiftStep();
-          ss2k->targetPosition += rtConfig->getTargetIncline() * userConfig->getInclineMultiplier();
-        }
-      }
-
-      if (ss2k->syncMode) {
-        stepper->stopMove();
-        vTaskDelay(100 / portTICK_PERIOD_MS);
-        stepper->setCurrentPosition(ss2k->targetPosition);
-        vTaskDelay(100 / portTICK_PERIOD_MS);
-      }
-
-      if (ss2k->pelotonIsConnected) {
-        if ((rtConfig->resistance.getValue() > rtConfig->getMinResistance()) && (rtConfig->resistance.getValue() < rtConfig->getMaxResistance())) {
-          stepper->moveTo(ss2k->targetPosition);
-        } else if (rtConfig->resistance.getValue() <= rtConfig->getMinResistance()) {  // Limit Stepper to Min Resistance
-          if (rtConfig->resistance.getValue() != rtConfig->getMinResistance()) {
-            stepper->moveTo(stepper->getCurrentPosition() + 20);
-          }
-          // Let the user Shift Out of this Position
-          if (ss2k->targetPosition > stepper->getCurrentPosition()) {
-            stepper->moveTo(ss2k->targetPosition);
-          }
-        } else {  // Limit Stepper to Max Resistance
-          if (rtConfig->resistance.getValue() != rtConfig->getMaxResistance()) {
-            stepper->moveTo(stepper->getCurrentPosition() - 20);
-          }
-          // Let the user Shift Out of this Position
-          if (ss2k->targetPosition < stepper->getCurrentPosition()) {
-            stepper->moveTo(ss2k->targetPosition);
-          }
-        }
-
+  if (stepper) {
+    ss2k->stepperIsRunning = stepper->isRunning();
+    ss2k->currentPosition  = stepper->getCurrentPosition();
+    if (!ss2k->externalControl) {
+      if ((rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetPower) ||
+          (rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetResistanceLevel)) {
+        ss2k->targetPosition = rtConfig->getTargetIncline();
       } else {
-        if ((ss2k->targetPosition >= rtConfig->getMinStep()) && (ss2k->targetPosition <= rtConfig->getMaxStep())) {
+        // Simulation Mode
+        ss2k->targetPosition = rtConfig->getShifterPosition() * userConfig->getShiftStep();
+        ss2k->targetPosition += rtConfig->getTargetIncline() * userConfig->getInclineMultiplier();
+      }
+    }
+
+    if (ss2k->syncMode) {
+      stepper->stopMove();
+      vTaskDelay(100 / portTICK_PERIOD_MS);
+      stepper->setCurrentPosition(ss2k->targetPosition);
+      vTaskDelay(100 / portTICK_PERIOD_MS);
+    }
+
+    if (ss2k->pelotonIsConnected) {
+      if ((rtConfig->resistance.getValue() > rtConfig->getMinResistance()) && (rtConfig->resistance.getValue() < rtConfig->getMaxResistance())) {
+        stepper->moveTo(ss2k->targetPosition);
+      } else if (rtConfig->resistance.getValue() <= rtConfig->getMinResistance()) {  // Limit Stepper to Min Resistance
+        if (rtConfig->resistance.getValue() != rtConfig->getMinResistance()) {
+          stepper->moveTo(stepper->getCurrentPosition() + 20);
+        }
+        // Let the user Shift Out of this Position
+        if (ss2k->targetPosition > stepper->getCurrentPosition()) {
           stepper->moveTo(ss2k->targetPosition);
-        } else if (ss2k->targetPosition <= rtConfig->getMinStep()) {  // Limit Stepper to Min Position
-          stepper->moveTo(rtConfig->getMinStep());
-        } else {  // Limit Stepper to Max Position
-          stepper->moveTo(rtConfig->getMaxStep());
+        }
+      } else {  // Limit Stepper to Max Resistance
+        if (rtConfig->resistance.getValue() != rtConfig->getMaxResistance()) {
+          stepper->moveTo(stepper->getCurrentPosition() - 20);
+        }
+        // Let the user Shift Out of this Position
+        if (ss2k->targetPosition < stepper->getCurrentPosition()) {
+          stepper->moveTo(ss2k->targetPosition);
         }
       }
-      rtConfig->setCurrentIncline((float)stepper->getCurrentPosition());
-      vTaskDelay(50 / portTICK_PERIOD_MS);
 
-      if (connectedClientCount() > 0) {
-        stepper->setAutoEnable(false);  // Keep the stepper from rolling back due to head tube slack. Motor Driver still lowers power between moves
-        stepper->enableOutputs();
-      } else {
-        stepper->setAutoEnable(true);  // disable output FETs between moves so stepper can cool. Can still shift.
+    } else {
+      if ((ss2k->targetPosition >= rtConfig->getMinStep()) && (ss2k->targetPosition <= rtConfig->getMaxStep())) {
+        stepper->moveTo(ss2k->targetPosition);
+      } else if (ss2k->targetPosition <= rtConfig->getMinStep()) {  // Limit Stepper to Min Position
+        stepper->moveTo(rtConfig->getMinStep());
+      } else {  // Limit Stepper to Max Position
+        stepper->moveTo(rtConfig->getMaxStep());
       }
+    }
+    rtConfig->setCurrentIncline((float)stepper->getCurrentPosition());
+    
+    if (connectedClientCount() > 0) {
+      stepper->setAutoEnable(false);  // Keep the stepper from rolling back due to head tube slack. Motor Driver still lowers power between moves
+      stepper->enableOutputs();
+    } else {
+      stepper->setAutoEnable(true);  // disable output FETs between moves so stepper can cool. Can still shift.
+    }
 
-      if (_stepperDir != userConfig->getStepperDir()) {  // User changed the config direction of the stepper wires
-        _stepperDir = userConfig->getStepperDir();
-        while (stepper->isRunning()) {  // Wait until the motor stops running
-          vTaskDelay(100 / portTICK_PERIOD_MS);
-        }
-        stepper->setDirectionPin(currentBoard.dirPin, _stepperDir);
+    if (_stepperDir != userConfig->getStepperDir()) {  // User changed the config direction of the stepper wires
+      _stepperDir = userConfig->getStepperDir();
+      while (stepper->isRunning()) {  // Wait until the motor stops running
+        vTaskDelay(100 / portTICK_PERIOD_MS);
       }
+      stepper->setDirectionPin(currentBoard.dirPin, _stepperDir);
     }
   }
 }

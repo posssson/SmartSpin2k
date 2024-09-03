@@ -17,13 +17,10 @@
 
 bool hr2p = false;
 
-TaskHandle_t BLECommunicationTask;
-
-void BLECommunications(void *pvParameters) {
-  for (;;) {
-    // if (!spinBLEClient.dontBlockScan) {
-    //   NimBLEDevice::getScan()->stop();  // stop routine scans
-    // }
+void BLECommunications() {
+  static unsigned long int bleCommTimer = millis();
+  if (((millis() - bleCommTimer) > BLE_NOTIFY_DELAY) && !ss2k->isUpdating) {
+    bleCommTimer = millis();
     // **********************************Client***************************************
     for (auto &_BLEd : spinBLEClient.myBLEDevices) {  // loop through discovered devices
       if (_BLEd.connectedClientID != BLE_HS_CONN_HANDLE_NONE) {
@@ -63,10 +60,7 @@ void BLECommunications(void *pvParameters) {
                 spinBLEClient.handleBattInfo(pClient, false);
 
               } else if (!pClient->isConnected()) {  // This shouldn't ever be
-                                                     // called...
-                                                     // if (pClient->disconnect() == 0) {    // 0 is a successful disconnect
-                // BLEDevice::deleteClient(pClient);
-                // vTaskDelay(100 / portTICK_PERIOD_MS);
+                                                     // called...                                                
                 SS2K_LOG(BLE_COMMON_LOG_TAG, "Workaround connect");
                 _BLEd.doConnect = true;
                 //}
@@ -129,9 +123,5 @@ void BLECommunications(void *pvParameters) {
     } else {
       digitalWrite(LED_PIN, HIGH);
     }
-    vTaskDelay((BLE_NOTIFY_DELAY) / portTICK_PERIOD_MS);
-#ifdef DEBUG_STACK
-    Serial.printf("BLEComm: %d \n", uxTaskGetStackHighWaterMark(BLECommunicationTask));
-#endif  // DEBUG_STACK
   }
 }

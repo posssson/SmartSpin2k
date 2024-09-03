@@ -45,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed driver temp checking. It's not accurate on the ESP32. 
 - Peloton resistance limit enhancements.
 - Continue updating power metrics to other clients if one client disconnects.
-
+- Freed 19k of ram by consolidating tasks and using timers instead of delays. 
 
 ### Hardware
 - added Yesoul S3.
