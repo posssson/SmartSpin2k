@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="GERBER-SmartSpin2k_Panelized">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/Hardware/V3 - Integrated PCB/PCB/SS2K_KiCad_Files/SmartSpin2k_Panelized/jlcpcb/production_files/GERBER-SmartSpin2k_Panelized.zip!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

@@ -56,6 +56,8 @@ const uint8_t BLE_scanBLE               = 0x24;  // Scan for new BLE devices
 const uint8_t BLE_firmwareVer           = 0x25;  // String of the current firmware version
 const uint8_t BLE_resetPowerTable       = 0x26;  // Delete all power table information.
 const uint8_t BLE_powerTableData        = 0x27;  // sets or requests power table data
+const uint8_t BLE_simulatedTargetWatts  = 0x28;  // current target watts
+const uint8_t BLE_simulateTargetWatts   = 0x29;  // "" for target watts
 
 class BLE_ss2kCustomCharacteristic {
  public:

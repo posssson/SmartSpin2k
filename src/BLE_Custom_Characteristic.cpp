@@ -679,6 +679,34 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         }
       }
       break;
+      case BLE_simulatedTargetWatts: 
+      logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "<-targetWatts");
+      if (rxValue[0] == cc_read) {
+        returnValue[0] = cc_success;
+        returnValue[2] = (uint8_t)(rtConfig->watts.getTarget() & 0xff);
+        returnValue[3] = (uint8_t)(rtConfig->watts.getTarget() >> 8);
+        returnLength += 2;
+      }
+      if (rxValue[0] == cc_write) {
+        returnValue[0] = cc_success;
+        rtConfig->watts.setValue(bytes_to_u16(rxValue[3], rxValue[2]));
+        logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "(%d)", rtConfig->watts.getTarget());
+      }
+      break;
+      case BLE_simulateTargetWatts: 
+      logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "<-simulatetargetwatts");
+      if (rxValue[0] == cc_read) {
+        returnValue[0] = cc_success;
+        returnValue[2] = (uint8_t)(rtConfig->watts.getSimulate());
+        returnLength += 1;
+      }
+      if (rxValue[0] == cc_write) {
+        returnValue[0] = cc_success;
+        rtConfig->watts.setSimulate(rxValue[2]);
+        logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "(%s)", rtConfig->watts.getSimulate() ? "true" : "false");
+      }
+      break;
+
   }
 
   SS2K_LOG(CUSTOM_CHAR_LOG_TAG, "%s", logBuf);
@@ -700,6 +728,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
 // iterate through all smartspin user parameters and notify the specific one if changed
 void BLE_ss2kCustomCharacteristic::parseNemit() {
   static userParameters _oldParams;
+  static RuntimeParameters _oldRTParams; 
 
   if (userConfig->getAutoUpdate() != _oldParams.getAutoUpdate()) {
     _oldParams.setAutoUpdate(userConfig->getAutoUpdate());
@@ -812,5 +841,11 @@ void BLE_ss2kCustomCharacteristic::parseNemit() {
     _oldParams.setShifterDir(userConfig->getShifterDir());
     BLE_ss2kCustomCharacteristic::notify(BLE_shiftDir);
     return;
+  }
+  if(rtConfig->watts.getTarget() != _oldRTParams.watts.getTarget()){
+    _oldRTParams.watts.setTarget(rtConfig->watts.getTarget()); 
+     BLE_ss2kCustomCharacteristic::notify(BLE_simulatedTargetWatts);
+     Serial.println(_oldRTParams.watts.getTarget()); 
+     return; 
   }
 }
