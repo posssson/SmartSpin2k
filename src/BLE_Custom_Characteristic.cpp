@@ -842,10 +842,14 @@ void BLE_ss2kCustomCharacteristic::parseNemit() {
     BLE_ss2kCustomCharacteristic::notify(BLE_shiftDir);
     return;
   }
+  if(rtConfig->getFTMSMode() != _oldRTParams.getFTMSMode()){
+    _oldRTParams.setFTMSMode(rtConfig->getFTMSMode());
+    BLE_ss2kCustomCharacteristic::notify(BLE_FTMSMode);
+    return;
+  }
   if(rtConfig->watts.getTarget() != _oldRTParams.watts.getTarget()){
     _oldRTParams.watts.setTarget(rtConfig->watts.getTarget()); 
      BLE_ss2kCustomCharacteristic::notify(BLE_simulatedTargetWatts);
-     Serial.println(_oldRTParams.watts.getTarget()); 
      return; 
   }
 }

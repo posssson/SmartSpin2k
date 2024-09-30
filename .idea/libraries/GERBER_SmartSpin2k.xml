@@ -1,9 +1,0 @@
-<component name="libraryTable">
-  <library name="GERBER-SmartSpin2k">
-    <CLASSES>
-      <root url="jar://$PROJECT_DIR$/Hardware/V3 - Integrated PCB/PCB/SS2K_KiCad_Files/jlcpcb/production_files/GERBER-SmartSpin2k.zip!/" />
-    </CLASSES>
-    <JAVADOC />
-    <SOURCES />
-  </library>
-</component>
