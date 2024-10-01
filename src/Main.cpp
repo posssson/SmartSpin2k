@@ -71,7 +71,7 @@ void SS2K::stopTasks() {
 
 void setup() {
   // Serial port for debugging purposes
-  Serial.begin(512000);
+  Serial.begin(115200);
   SS2K_LOG(MAIN_LOG_TAG, "Compiled %s%s", __DATE__, __TIME__);
   pinMode(REV_PIN, INPUT);
   int actualVoltage = analogRead(REV_PIN);
@@ -434,7 +434,7 @@ void SS2K::moveStepper() {
       }
     }
     rtConfig->setCurrentIncline((float)stepper->getCurrentPosition());
-    
+
     if (connectedClientCount() > 0) {
       stepper->setAutoEnable(false);  // Keep the stepper from rolling back due to head tube slack. Motor Driver still lowers power between moves
       stepper->enableOutputs();
