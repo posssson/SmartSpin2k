@@ -71,7 +71,7 @@ void SS2K::stopTasks() {
 
 void setup() {
   // Serial port for debugging purposes
-  Serial.begin(115200);
+  Serial.begin(512000);
   SS2K_LOG(MAIN_LOG_TAG, "Compiled %s%s", __DATE__, __TIME__);
   pinMode(REV_PIN, INPUT);
   int actualVoltage = analogRead(REV_PIN);
