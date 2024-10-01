@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Peloton resistance limit enhancements.
 - Continue updating power metrics to other clients if one client disconnects.
 - Freed 19k of ram by consolidating tasks and using timers instead of delays. 
+- Added a final test to check if ERG mode has commanded a move in the proper direction. 
 
 ### Hardware
 - added Yesoul S3.
