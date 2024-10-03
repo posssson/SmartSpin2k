@@ -434,7 +434,7 @@ void SS2K::moveStepper() {
       }
     }
     rtConfig->setCurrentIncline((float)stepper->getCurrentPosition());
-    
+
     if (connectedClientCount() > 0) {
       stepper->setAutoEnable(false);  // Keep the stepper from rolling back due to head tube slack. Motor Driver still lowers power between moves
       stepper->enableOutputs();
