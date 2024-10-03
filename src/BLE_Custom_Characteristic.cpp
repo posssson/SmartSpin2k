@@ -679,7 +679,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         }
       }
       break;
-      case BLE_simulatedTargetWatts: 
+      case BLE_simulatedTargetWatts: //0x28
       logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "<-targetWatts");
       if (rxValue[0] == cc_read) {
         returnValue[0] = cc_success;
@@ -693,17 +693,17 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "(%d)", rtConfig->watts.getTarget());
       }
       break;
-      case BLE_simulateTargetWatts: 
+      case BLE_simulateTargetWatts: //0x29
       logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "<-simulatetargetwatts");
       if (rxValue[0] == cc_read) {
         returnValue[0] = cc_success;
-        returnValue[2] = (uint8_t)(rtConfig->watts.getSimulate());
+        returnValue[2] = (uint8_t)(rtConfig->getSimTargetWatts());
         returnLength += 1;
       }
       if (rxValue[0] == cc_write) {
         returnValue[0] = cc_success;
-        rtConfig->watts.setSimulate(rxValue[2]);
-        logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "(%s)", rtConfig->watts.getSimulate() ? "true" : "false");
+        rtConfig->setSimTargetWatts(rxValue[2]);
+        logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "(%s)", rtConfig->getSimTargetWatts() ? "true" : "false");
       }
       break;
 
@@ -850,6 +850,11 @@ void BLE_ss2kCustomCharacteristic::parseNemit() {
   if(rtConfig->watts.getTarget() != _oldRTParams.watts.getTarget()){
     _oldRTParams.watts.setTarget(rtConfig->watts.getTarget()); 
      BLE_ss2kCustomCharacteristic::notify(BLE_simulatedTargetWatts);
+     return; 
+  }
+  if(rtConfig->getSimTargetWatts() != _oldRTParams.getSimTargetWatts()){
+    _oldRTParams.setSimTargetWatts(rtConfig->getSimTargetWatts());
+    BLE_ss2kCustomCharacteristic::notify(BLE_simulateTargetWatts);
      return; 
   }
 }
