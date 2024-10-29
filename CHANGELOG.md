@@ -72,11 +72,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added Bowflex Velocore bike.
 - Added another Y cable picture for Peloton.
 - Moved wire guard up 1 mm.
-- Added JLL-IC400
+- Added JLL-IC400.
 - Tightened up tolerances on the case.
 - Increased gear spacing by .1mm
 - Reduced bearing clearance by .15mm
 - Added Stryde Bike.
+- Added Life Fitness ICG8.
 
 ## [23.6.28]
 
