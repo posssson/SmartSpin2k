@@ -131,6 +131,8 @@ void BLE_Fitness_Machine_Service::processFTMSWrite() {
         case FitnessMachineControlPointProcedure::RequestControl:
           returnValue[2] = FitnessMachineControlPointResultCode::Success;  // 0x01;
           pCharacteristic->setValue(returnValue, 3);
+          rtConfig->watts.setTarget(0); 
+          rtConfig->setSimTargetWatts(false); 
           logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "-> Control Request");
           ftmsTrainingStatus[1] = FitnessMachineTrainingStatus::Idle;  // 0x01;
           fitnessMachineTrainingStatus->setValue(ftmsTrainingStatus, 2);
@@ -238,7 +240,6 @@ void BLE_Fitness_Machine_Service::processFTMSWrite() {
           rtConfig->setFTMSMode((uint8_t)rxValue[0]);
           returnValue[2] = FitnessMachineControlPointResultCode::Success;  // 0x01;
           pCharacteristic->setValue(returnValue, 3);
-
           signed char buf[2];
           // int16_t windSpeed        = (rxValue[2] << 8) + rxValue[1];
           buf[0] = rxValue[3];  // (Least significant byte)
