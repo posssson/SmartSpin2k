@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added CSC Service to BLE server.
 - Added Yosuda-007C.
 - Updated wiki banner.
+- Added support for the Zwift gear display.
 
 ### Changed
 

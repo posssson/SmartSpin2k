@@ -7,10 +7,8 @@
 
 #pragma once
 
-// #define CONFIG_SW_COEXIST_ENABLE 1
-
-#include <memory>
 #include <NimBLEDevice.h>
+#include <memory>
 #include <Arduino.h>
 #include <queue>
 #include <deque>
@@ -44,12 +42,6 @@ class MyServerCallbacks : public NimBLEServerCallbacks {
   bool onConnParamsUpdateRequest(NimBLEClient *pClient, const ble_gap_upd_params *params);
 };
 
-class MyCallbacks : public NimBLECharacteristicCallbacks {
- public:
-  void onWrite(BLECharacteristic *);
-  void onSubscribe(NimBLECharacteristic *pCharacteristic, ble_gap_conn_desc *desc, uint16_t subValue);
-};
-
 // TODO add the rest of the server to this class
 class SpinBLEServer {
  private:
@@ -70,6 +62,12 @@ class SpinBLEServer {
   // Queue to store writes to any of the callbacks to the server
   std::queue<std::string> writeCache;
   SpinBLEServer() { memset(&clientSubscribed, 0, sizeof(clientSubscribed)); }
+};
+
+class MyCallbacks : public NimBLECharacteristicCallbacks {
+ public:
+  void onWrite(BLECharacteristic *);
+  void onSubscribe(NimBLECharacteristic *pCharacteristic, ble_gap_conn_desc *desc, uint16_t subValue);
 };
 
 extern SpinBLEServer spinBLEServer;
