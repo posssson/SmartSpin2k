@@ -679,7 +679,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         }
       }
       break;
-      case BLE_simulatedTargetWatts: //0x28
+    case BLE_simulatedTargetWatts:  // 0x28
       logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "<-targetWatts");
       if (rxValue[0] == cc_read) {
         returnValue[0] = cc_success;
@@ -693,7 +693,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "(%d)", rtConfig->watts.getTarget());
       }
       break;
-      case BLE_simulateTargetWatts: //0x29
+    case BLE_simulateTargetWatts:  // 0x29
       logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "<-simulatetargetwatts");
       if (rxValue[0] == cc_read) {
         returnValue[0] = cc_success;
@@ -706,7 +706,6 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "(%s)", rtConfig->getSimTargetWatts() ? "true" : "false");
       }
       break;
-
   }
 
   SS2K_LOG(CUSTOM_CHAR_LOG_TAG, "%s", logBuf);
@@ -728,7 +727,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
 // iterate through all smartspin user parameters and notify the specific one if changed
 void BLE_ss2kCustomCharacteristic::parseNemit() {
   static userParameters _oldParams;
-  static RuntimeParameters _oldRTParams; 
+  static RuntimeParameters _oldRTParams;
 
   if (userConfig->getAutoUpdate() != _oldParams.getAutoUpdate()) {
     _oldParams.setAutoUpdate(userConfig->getAutoUpdate());
@@ -842,19 +841,19 @@ void BLE_ss2kCustomCharacteristic::parseNemit() {
     BLE_ss2kCustomCharacteristic::notify(BLE_shiftDir);
     return;
   }
-  if(rtConfig->getFTMSMode() != _oldRTParams.getFTMSMode()){
+  if (rtConfig->getFTMSMode() != _oldRTParams.getFTMSMode()) {
     _oldRTParams.setFTMSMode(rtConfig->getFTMSMode());
     BLE_ss2kCustomCharacteristic::notify(BLE_FTMSMode);
     return;
   }
-  if(rtConfig->watts.getTarget() != _oldRTParams.watts.getTarget()){
-    _oldRTParams.watts.setTarget(rtConfig->watts.getTarget()); 
-     BLE_ss2kCustomCharacteristic::notify(BLE_simulatedTargetWatts);
-     return; 
+  if (rtConfig->watts.getTarget() != _oldRTParams.watts.getTarget()) {
+    _oldRTParams.watts.setTarget(rtConfig->watts.getTarget());
+    BLE_ss2kCustomCharacteristic::notify(BLE_simulatedTargetWatts);
+    return;
   }
-  if(rtConfig->getSimTargetWatts() != _oldRTParams.getSimTargetWatts()){
+  if (rtConfig->getSimTargetWatts() != _oldRTParams.getSimTargetWatts()) {
     _oldRTParams.setSimTargetWatts(rtConfig->getSimTargetWatts());
     BLE_ss2kCustomCharacteristic::notify(BLE_simulateTargetWatts);
-     return; 
+    return;
   }
 }

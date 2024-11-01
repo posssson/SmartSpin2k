@@ -14,6 +14,7 @@
 #include <deque>
 #include "Main.h"
 #include "BLE_Definitions.h"
+#include "BLE_Wattbike_Service.h"
 
 #define BLE_CLIENT_LOG_TAG  "BLE_Client"
 #define BLE_COMMON_LOG_TAG  "BLE_Common"
@@ -71,6 +72,7 @@ class MyCallbacks : public NimBLECharacteristicCallbacks {
 };
 
 extern SpinBLEServer spinBLEServer;
+extern BLE_Wattbike_Service wattbikeService;
 
 void startBLEServer();
 void logCharacteristic(char *buffer, const size_t bufferCapacity, const byte *data, const size_t dataLength, const NimBLEUUID serviceUUID, const NimBLEUUID charUUID,
