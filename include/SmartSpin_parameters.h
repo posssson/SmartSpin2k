@@ -55,12 +55,13 @@ class Measurement {
 
 class RuntimeParameters {
  private:
-  double targetIncline  = 0.0;
+  double targetIncline = 0.0;
   float simulatedSpeed = 0.0;
   uint8_t FTMSMode     = 0x00;
   int shifterPosition  = 0;
-  int32_t minStep          = -DEFAULT_STEPPER_TRAVEL;
-  int32_t maxStep          = DEFAULT_STEPPER_TRAVEL;
+  bool homed           = false;
+  int32_t minStep      = -DEFAULT_STEPPER_TRAVEL;
+  int32_t maxStep      = DEFAULT_STEPPER_TRAVEL;
   int minResistance    = -DEFAULT_RESISTANCE_RANGE;
   int maxResistance    = DEFAULT_RESISTANCE_RANGE;
   bool simTargetWatts  = false;
@@ -84,6 +85,9 @@ class RuntimeParameters {
 
   void setShifterPosition(int sp) { shifterPosition = sp; }
   int getShifterPosition() { return shifterPosition; }
+
+  void setHomed(int hmd) { homed = hmd; }
+  int getHomed() { return homed; }
 
   void setMinStep(int ms) { minStep = ms; }
   int getMinStep() { return minStep; }
@@ -120,7 +124,7 @@ class userParameters {
   bool stepperDir;
   bool shifterDir;
   bool udpLogEnabled = false;
- 
+
   bool FTMSControlPointWrite = false;
   String ssid;
   String password;

@@ -61,7 +61,7 @@ class SS2K {
   void stopTasks();
   void restartWifi();
   void setupTMCStepperDriver();
-  void updateStepperPower();
+  void updateStepperPower(int pwr = 0);
   void updateStealthChop();
   void updateStepperSpeed(int speed = 0);
   void checkDriverTemperature();

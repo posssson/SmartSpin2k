@@ -131,6 +131,12 @@ void PowerTable::processPowerValue(PowerBuffer& powerBuffer, int cadence, Measur
 void PowerTable::setStepperMinMax() {
   int32_t _return = RETURN_ERROR;
 
+  // if Homing was preformed, skip estimating mun_max
+  if (rtConfig->getHomed()) {
+    SS2K_LOG(ERG_MODE_LOG_TAG, "Using detected travel limits during homing");
+    return;
+  }
+
   // if the FTMS device reports resistance feedback, skip estimating min_max
   if (rtConfig->resistance.getValue() > 0) {
     rtConfig->setMinStep(-DEFAULT_STEPPER_TRAVEL);

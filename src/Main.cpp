@@ -22,7 +22,7 @@
 
 // Stepper Motor Serial
 HardwareSerial stepperSerial(2);
-TMC2208Stepper driver(&SERIAL_PORT, R_SENSE);  // Hardware Serial
+TMC2209Stepper driver(&SERIAL_PORT, R_SENSE, 0b00);  // Hardware Serial
 
 // Peloton Serial
 HardwareSerial auxSerial(1);
@@ -527,24 +527,63 @@ void SS2K::setupTMCStepperDriver() {
   driver.begin();
   driver.pdn_disable(true);
   driver.mstep_reg_select(true);
-  ss2k->updateStepperSpeed();
-  ss2k->updateStepperPower();
-  driver.microsteps(4);  // Set microsteps to 1/8th
-  driver.irun(currentBoard.pwrScaler);
-  driver.ihold((uint8_t)(currentBoard.pwrScaler * .5));  // hold current % 0-DRIVER_MAX_PWR_SCALER
-  driver.iholddelay(10);                                 // Controls the number of clock cycles for motor
+  driver.microsteps(4);   // Set microsteps to 1/8th
+  driver.iholddelay(10);  // Controls the number of clock cycles for motor
   // power down after standstill is detected
   driver.TPOWERDOWN(128);
   driver.toff(5);
   ss2k->updateStealthChop();
+
+  // test homing code
+  if (true) {
+    updateStepperPower(50);
+    driver.irun(1);  // low power
+    driver.ihold((uint8_t)(1));
+    bool stalled = false;
+    int threshold               = 0;
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    stepper->runForward();
+    vTaskDelay(250 / portTICK_PERIOD_MS);  // wait until stable
+    threshold = driver.SG_RESULT();        // take reading
+    Serial.printf("%d ", driver.SG_RESULT());
+    vTaskDelay(250 / portTICK_PERIOD_MS);
+    while (!stalled) {
+      stalled = (driver.SG_RESULT() < threshold - 50);
+    }
+    stalled = false;
+    stepper->forceStop();
+    stepper->disableOutputs();
+    vTaskDelay(2000 / portTICK_PERIOD_MS);
+    rtConfig->setMaxStep(stepper->getCurrentPosition() - 200);
+    stepper->enableOutputs();
+    stepper->runBackward();
+    vTaskDelay(250 / portTICK_PERIOD_MS);
+    threshold = driver.SG_RESULT();
+    Serial.printf("%d ", driver.SG_RESULT());
+    vTaskDelay(250 / portTICK_PERIOD_MS);
+    while (!stalled) {
+      stalled = (driver.SG_RESULT() < threshold - 50);
+    }
+    stepper->forceStop();
+    stepper->disableOutputs();
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+    rtConfig->setMinStep(stepper->getCurrentPosition() + 200);
+    stepper->enableOutputs();
+  }
+
+  driver.irun(currentBoard.pwrScaler);
+  driver.ihold((uint8_t)(currentBoard.pwrScaler * .5));  // hold current % 0-DRIVER_MAX_PWR_SCALER
+  ss2k->updateStepperSpeed();
+  ss2k->updateStepperPower();
+  ss2k->setCurrentPosition(stepper->getCurrentPosition());
 }
 
 // Applies current power to driver
-void SS2K::updateStepperPower() {
-  uint16_t rmsPwr = (userConfig->getStepperPower());
+void SS2K::updateStepperPower(int pwr) {
+  uint16_t rmsPwr = (pwr == 0) ? userConfig->getStepperPower() : pwr;
   driver.rms_current(rmsPwr);
   uint16_t current = driver.cs_actual();
-  SS2K_LOG(MAIN_LOG_TAG, "Stepper power is now %d.  read:cs=%U", userConfig->getStepperPower(), current);
+  SS2K_LOG(MAIN_LOG_TAG, "Stepper power is now %d.  read:cs=%U", (pwr == 0) ? userConfig->getStepperPower() : pwr, current);
 }
 
 // Applies current StealthChop to driver

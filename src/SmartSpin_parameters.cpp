@@ -28,15 +28,16 @@ String RuntimeParameters::returnJSON() {
   doc["simCad"]           = this->cad.getSimulate();
   doc["resistance"]       = this->resistance.getValue();
   doc["targetResistance"] = this->resistance.getTarget();
-  doc["targetIncline"]    = targetIncline;
-  doc["speed"]            = simulatedSpeed;
-  doc["simTargetWatts"]   = simTargetWatts;
-  doc["FTMSMode"]         = FTMSMode;
-  doc["shifterPosition"]  = shifterPosition;
-  doc["minStep"]          = minStep;
-  doc["maxStep"]          = maxStep;
-  doc["minResistance"]    = minResistance;
-  doc["maxResistance"]    = maxResistance;
+  doc["homed"]            = this->homed;
+  doc["targetIncline"]    = this->targetIncline;
+  doc["speed"]            = this->simulatedSpeed;
+  doc["simTargetWatts"]   = this->simTargetWatts;
+  doc["FTMSMode"]         = this->FTMSMode;
+  doc["shifterPosition"]  = this->shifterPosition;
+  doc["minStep"]          = this->minStep;
+  doc["maxStep"]          = this->maxStep;
+  doc["minResistance"]    = this->minResistance;
+  doc["maxResistance"]    = this->maxResistance;
 
   String output;
   serializeJson(doc, output);
@@ -50,7 +51,7 @@ void userParameters::setDefaults() {
   shiftStep             = DEFAULT_SHIFT_STEP;
   stealthChop           = STEALTHCHOP;
   stepperPower          = DEFAULT_STEPPER_POWER;
-  stepperSpeed            = DEFAULT_STEPPER_SPEED;
+  stepperSpeed          = DEFAULT_STEPPER_SPEED;
   inclineMultiplier     = INCLINE_MULTIPLIER;
   powerCorrectionFactor = 1.0;
   ERGSensitivity        = ERG_SENSITIVITY;
@@ -141,12 +142,12 @@ void userParameters::saveToLittleFS() {
   doc["connectedPowerMeter"]   = connectedPowerMeter;
   doc["connectedHeartMonitor"] = connectedHeartMonitor;
   doc["connectedRemote"]       = connectedRemote;
-  //doc["foundDevices"]          = foundDevices;
-  doc["maxWatts"]              = maxWatts;
-  doc["minWatts"]              = minWatts;
-  doc["shifterDir"]            = shifterDir;
-  doc["stepperDir"]            = stepperDir;
-  doc["udpLogEnabled"]         = udpLogEnabled;
+  // doc["foundDevices"]          = foundDevices;
+  doc["maxWatts"]      = maxWatts;
+  doc["minWatts"]      = minWatts;
+  doc["shifterDir"]    = shifterDir;
+  doc["stepperDir"]    = stepperDir;
+  doc["udpLogEnabled"] = udpLogEnabled;
 
   // Serialize JSON to file
   if (serializeJson(doc, file) == 0) {
@@ -192,16 +193,16 @@ void userParameters::loadFromLittleFS() {
   setPassword(doc["password"]);
   setConnectedPowerMeter(doc["connectedPowerMeter"]);
   setConnectedHeartMonitor(doc["connectedHeartMonitor"]);
-  //setFoundDevices(doc["foundDevices"]);
-  
+  // setFoundDevices(doc["foundDevices"]);
+
   // If statements to upgrade old versions of config.txt that didn't include these
-  if (doc["ERGSensitivity"]) {  
+  if (doc["ERGSensitivity"]) {
     setERGSensitivity(doc["ERGSensitivity"]);
   }
   if (doc["maxWatts"]) {
     setMaxWatts(doc["maxWatts"]);
   }
-  if (doc["stepperSpeed"]){
+  if (doc["stepperSpeed"]) {
     setStepperSpeed(doc["stepperSpeed"]);
   }
   if (doc["minWatts"]) {
