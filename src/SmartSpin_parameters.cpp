@@ -29,7 +29,6 @@ String RuntimeParameters::returnJSON() {
   doc["resistance"]       = this->resistance.getValue();
   doc["targetResistance"] = this->resistance.getTarget();
   doc["targetIncline"]    = targetIncline;
-  doc["currentIncline"]   = currentIncline;
   doc["speed"]            = simulatedSpeed;
   doc["simTargetWatts"]   = simTargetWatts;
   doc["FTMSMode"]         = FTMSMode;

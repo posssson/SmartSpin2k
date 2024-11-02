@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added CSC Service to BLE server.
 - Added Yosuda-007C.
 - Updated wiki banner.
+- Added automatic update of Changelog sections on pull request to develop. 
 - Added support for the Zwift gear display.
 
 ### Changed
@@ -56,7 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a final test to check if ERG mode has commanded a move in the proper direction.
 - Aligned the values between the config app and web interface.
 - Added ability to send target watts through the custom characteristic. 
-- Added a final test to check if ERG mode has commanded a move in the proper direction. 
+- Added a final test to check if ERG mode has commanded a move in the proper direction.
+- Cleaned up targetPosition to make it easier to understand. 
 
 ### Hardware
 

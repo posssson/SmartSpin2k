@@ -56,7 +56,6 @@ class Measurement {
 class RuntimeParameters {
  private:
   double targetIncline  = 0.0;
-  double currentIncline = 0.0;
   float simulatedSpeed = 0.0;
   uint8_t FTMSMode     = 0x00;
   int shifterPosition  = 0;
@@ -76,9 +75,6 @@ class RuntimeParameters {
 
   void setTargetIncline(float inc) { targetIncline = inc; }
   float getTargetIncline() { return targetIncline; }
-
-  void setCurrentIncline(float inc) { currentIncline = inc; }
-  float getCurrentIncline() { return currentIncline; }
 
   void setSimulatedSpeed(float spd) { simulatedSpeed = spd; }
   float getSimulatedSpeed() { return simulatedSpeed; }
