@@ -595,7 +595,7 @@ void SpinBLEClient::FTMSControlPointWrite(const uint8_t *pData, int length) {
         const int kLogBufCapacity = length + 40;
         char logBuf[kLogBufCapacity];
         if (modData[0] == FitnessMachineControlPointProcedure::SetIndoorBikeSimulationParameters) {  // use virtual Shifting
-          int incline = ss2k->targetPosition / userConfig->getInclineMultiplier();
+          int incline = ss2k->getTargetPosition() / userConfig->getInclineMultiplier();
           modData[3]  = (uint8_t)(incline & 0xff);
           modData[4]  = (uint8_t)(incline >> 8);
           writeCharacteristic->writeValue(modData, length);

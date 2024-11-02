@@ -491,16 +491,16 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
       logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "<-targetPosition");
       if (rxValue[0] == cc_read) {
         returnValue[0] = cc_success;
-        returnValue[2] = (uint8_t)(ss2k->targetPosition & 0xff);
-        returnValue[3] = (uint8_t)(ss2k->targetPosition >> 8);
-        returnValue[4] = (uint8_t)(ss2k->targetPosition >> 16);
-        returnValue[5] = (uint8_t)(ss2k->targetPosition >> 24);
+        returnValue[2] = (uint8_t)(ss2k->getTargetPosition() & 0xff);
+        returnValue[3] = (uint8_t)(ss2k->getTargetPosition() >> 8);
+        returnValue[4] = (uint8_t)(ss2k->getTargetPosition() >> 16);
+        returnValue[5] = (uint8_t)(ss2k->getTargetPosition() >> 24);
         returnLength += 4;
       }
       if (rxValue[0] == cc_write) {
         returnValue[0]       = cc_success;
-        ss2k->targetPosition = (int32_t((uint8_t)(rxValue[2]) << 0 | (uint8_t)(rxValue[3]) << 8 | (uint8_t)(rxValue[4]) << 16 | (uint8_t)(rxValue[5]) << 24));
-        logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, " (%f)", ss2k->targetPosition);
+        ss2k->setTargetPosition(int32_t((uint8_t)(rxValue[2]) << 0 | (uint8_t)(rxValue[3]) << 8 | (uint8_t)(rxValue[4]) << 16 | (uint8_t)(rxValue[5]) << 24));
+        logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, " (%f)", ss2k->getTargetPosition());
       }
       break;
 

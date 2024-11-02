@@ -72,7 +72,7 @@ void collectAndSet(NimBLEUUID charUUID, NimBLEUUID serviceUUID, NimBLEAddress ad
   }
 
   //////adding incline so that i can plot it
-  logBufLength += snprintf(logBuf + logBufLength, kLogBufMaxLength - logBufLength, " POS(%d)", ss2k->currentPosition);
+  logBufLength += snprintf(logBuf + logBufLength, kLogBufMaxLength - logBufLength, " POS(%d)", ss2k->getCurrentPosition());
   strncat(logBuf + logBufLength, " ]", kLogBufMaxLength - logBufLength);
 
   SS2K_LOG(BLE_COMMON_LOG_TAG, "%s", logBuf);

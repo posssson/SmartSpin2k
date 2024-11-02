@@ -76,7 +76,7 @@ void PowerBuffer::set(int i) {
   this->powerEntry[i].readings++;
   this->powerEntry[i].watts          = rtConfig->watts.getValue();
   this->powerEntry[i].cad            = rtConfig->cad.getValue();
-  this->powerEntry[i].targetPosition = rtConfig->getCurrentIncline() / 100;  // dividing by 100 to save memory.
+  this->powerEntry[i].targetPosition = ss2k->getCurrentPosition() / 100;  // dividing by 100 to save memory.
 }
 
 void PowerBuffer::reset() {
@@ -144,13 +144,13 @@ void PowerTable::setStepperMinMax() {
     _return = this->lookup(minBreakWatts, NORMAL_CAD);
     if (_return != RETURN_ERROR) {
       // never set less than one shift below current incline.
-      if ((_return >= rtConfig->getCurrentIncline()) && (rtConfig->watts.getValue() > userConfig->getMinWatts())) {
-        _return = rtConfig->getCurrentIncline() - userConfig->getShiftStep();
+      if ((_return >= ss2k->getCurrentPosition()) && (rtConfig->watts.getValue() > userConfig->getMinWatts())) {
+        _return = ss2k->getCurrentPosition() - userConfig->getShiftStep();
         SS2K_LOG(ERG_MODE_LOG_TAG, "Min Position too close to current incline: %d", _return);
       }
       // never set above max step.
       if (_return >= rtConfig->getMaxStep()) {
-        _return = rtConfig->getCurrentIncline() - userConfig->getShiftStep() * 2;
+        _return = ss2k->getCurrentPosition() - userConfig->getShiftStep() * 2;
         SS2K_LOG(ERG_MODE_LOG_TAG, "Min Position above max!: %d", _return);
       }
       rtConfig->setMinStep(_return);
@@ -163,13 +163,13 @@ void PowerTable::setStepperMinMax() {
     _return = this->lookup(maxBreakWatts, NORMAL_CAD);
     if (_return != RETURN_ERROR) {
       // never set less than one shift above current incline.
-      if ((_return <= rtConfig->getCurrentIncline()) && (rtConfig->watts.getValue() < userConfig->getMaxWatts())) {
-        _return = rtConfig->getCurrentIncline() + userConfig->getShiftStep();
+      if ((_return <= ss2k->getCurrentPosition()) && (rtConfig->watts.getValue() < userConfig->getMaxWatts())) {
+        _return = ss2k->getCurrentPosition() + userConfig->getShiftStep();
         SS2K_LOG(ERG_MODE_LOG_TAG, "Max Position too close to current incline: %d", _return);
       }
       // never set below min step.
       if (_return <= rtConfig->getMinStep()) {
-        _return = rtConfig->getCurrentIncline() + userConfig->getShiftStep() * 2;
+        _return = ss2k->getCurrentPosition() + userConfig->getShiftStep() * 2;
         SS2K_LOG(ERG_MODE_LOG_TAG, "Max Position below min!: %d", _return);
       }
       rtConfig->setMaxStep(_return);
@@ -1063,7 +1063,7 @@ void ErgMode::computeResistance() {
   if (actualDelta != 0) {
     rtConfig->setTargetIncline(rtConfig->getTargetIncline() + (100 * actualDelta));
   } else {
-    rtConfig->setTargetIncline(rtConfig->getCurrentIncline());
+    rtConfig->setTargetIncline(ss2k->getCurrentPosition());
   }
   oldResistance = rtConfig->resistance;
 }
@@ -1085,7 +1085,7 @@ void ErgMode::computeErg() {
     newWatts.setTarget(userConfig->getMinWatts());
   }
 
-  bool isUserSpinning = this->_userIsSpinning(newCadence, rtConfig->getCurrentIncline());
+  bool isUserSpinning = this->_userIsSpinning(newCadence, ss2k->getCurrentPosition());
   if (!isUserSpinning) {
     SS2K_LOG(ERG_MODE_LOG_TAG, "ERG Mode but no User Spin");
     return;
@@ -1106,11 +1106,11 @@ void ErgMode::_setPointChangeState(int newCadence, Measurement& newWatts) {
 
   // Sanity check for targets
   if (tableResult != RETURN_ERROR) {
-    if (rtConfig->watts.getValue() > newWatts.getTarget() && tableResult > rtConfig->getCurrentIncline()) {
+    if (rtConfig->watts.getValue() > newWatts.getTarget() && tableResult > ss2k->getCurrentPosition()) {
       SS2K_LOG(ERG_MODE_LOG_TAG, "Table Result Failed High Test: %d", tableResult);
       tableResult = RETURN_ERROR;
     }
-    if (rtConfig->watts.getValue() < newWatts.getTarget() && tableResult < rtConfig->getCurrentIncline()) {
+    if (rtConfig->watts.getValue() < newWatts.getTarget() && tableResult < ss2k->getCurrentPosition()) {
       SS2K_LOG(ERG_MODE_LOG_TAG, "Table Result Failed Low Test: %d", tableResult);
       tableResult = RETURN_ERROR;
     }
@@ -1121,14 +1121,14 @@ void ErgMode::_setPointChangeState(int newCadence, Measurement& newWatts) {
     int wattChange  = newWatts.getTarget() - newWatts.getValue();
     float deviation = ((float)wattChange * 100.0) / ((float)newWatts.getTarget());
     float factor    = abs(deviation) > 10 ? userConfig->getERGSensitivity() * 2 : userConfig->getERGSensitivity() / 2;
-    tableResult     = rtConfig->getCurrentIncline() + (wattChange * factor);
+    tableResult     = ss2k->getCurrentPosition() + (wattChange * factor);
   }
 
   SS2K_LOG(ERG_MODE_LOG_TAG, "SetPoint changed:%dw PowerTable Result: %d", newWatts.getTarget(), tableResult);
   _updateValues(newCadence, newWatts, tableResult);
 
-  if (rtConfig->getTargetIncline() != rtConfig->getCurrentIncline()) {  // add some time to wait while the knob moves to target position.
-    int timeToAdd = abs(rtConfig->getCurrentIncline() - rtConfig->getTargetIncline());
+  if (rtConfig->getTargetIncline() != ss2k->getCurrentPosition()) {  // add some time to wait while the knob moves to target position.
+    int timeToAdd = abs(ss2k->getCurrentPosition() - rtConfig->getTargetIncline());
     if (timeToAdd > 5000) {  // 5 seconds
       SS2K_LOG(ERG_MODE_LOG_TAG, "Capping ERG seek time to 5 seconds");
       timeToAdd = 5000;
@@ -1145,14 +1145,14 @@ void ErgMode::_inSetpointState(int newCadence, Measurement& newWatts) {
   float deviation = ((float)wattChange * 100.0) / ((float)newWatts.getTarget());
 
   float factor     = abs(deviation) > 10 ? userConfig->getERGSensitivity() : userConfig->getERGSensitivity() / 2;
-  float newIncline = rtConfig->getCurrentIncline() + (wattChange * factor);
+  float newIncline = ss2k->getCurrentPosition() + (wattChange * factor);
 
   _updateValues(newCadence, newWatts, newIncline);
 }
 
 void ErgMode::_updateValues(int newCadence, Measurement& newWatts, float newIncline) {
   rtConfig->setTargetIncline(newIncline);
-  _writeLog(rtConfig->getCurrentIncline(), newIncline, this->setPoint, newWatts.getTarget(), this->watts.getValue(), newWatts.getValue(), this->cadence, newCadence);
+  _writeLog(ss2k->getCurrentPosition(), newIncline, this->setPoint, newWatts.getTarget(), this->watts.getValue(), newWatts.getValue(), this->cadence, newCadence);
 
   this->watts    = newWatts;
   this->setPoint = newWatts.getTarget();
