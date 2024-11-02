@@ -18,6 +18,7 @@
 #include "BLE_Custom_Characteristic.h"
 #include <Constants.h>
 #include "settings.h"
+#include "BLE_Wattbike_Service.h"
 
 // Stepper Motor Serial
 HardwareSerial stepperSerial(2);
@@ -178,6 +179,8 @@ void SS2K::maintenanceLoop(void *pvParameters) {
     BLECommunications();
     // send BLE notification for any userConfig values that changed.
     BLE_ss2kCustomCharacteristic::parseNemit();
+    // Update Zwift Gear UI if shift happened
+    wattbikeService.parseNemit();
     // Run What used to be in the Stepper Task.
     ss2k->moveStepper();
     // Run what used to be in the ERG Mode Task.
@@ -387,11 +390,11 @@ void SS2K::moveStepper() {
     ss2k->currentPosition  = stepper->getCurrentPosition();
     if (!ss2k->externalControl) {
       if ((rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetPower)) {
-        // don't drive lower out of bounds. This is a final test that should never happen. 
+        // don't drive lower out of bounds. This is a final test that should never happen.
         if ((stepper->getCurrentPosition() > rtConfig->getTargetIncline()) && (rtConfig->watts.getValue() < rtConfig->watts.getTarget())) {
           rtConfig->setTargetIncline(stepper->getCurrentPosition() + 1);
         }
-        // don't drive higher out of bounds. This is a final test that should never happen. 
+        // don't drive higher out of bounds. This is a final test that should never happen.
         if ((stepper->getCurrentPosition() < rtConfig->getTargetIncline()) && (rtConfig->watts.getValue() > rtConfig->watts.getTarget())) {
           rtConfig->setTargetIncline(stepper->getCurrentPosition() - 1);
         }
