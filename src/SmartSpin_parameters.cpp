@@ -67,6 +67,8 @@ void userParameters::setDefaults() {
   stepperDir            = true;
   shifterDir            = true;
   udpLogEnabled         = false;
+  hMin                  = INT32_MIN;
+  hMax                  = INT32_MIN;
 }
 
 //---------------------------------------------------------------------------------
@@ -100,6 +102,8 @@ String userParameters::returnJSON() {
   doc["shifterDir"]            = shifterDir;
   doc["stepperDir"]            = stepperDir;
   doc["udpLogEnabled"]         = udpLogEnabled;
+  doc["hMin"]                  = hMin;
+  doc["hMax"]                  = hMax;
 
   String output;
   serializeJson(doc, output);
@@ -148,6 +152,8 @@ void userParameters::saveToLittleFS() {
   doc["shifterDir"]    = shifterDir;
   doc["stepperDir"]    = stepperDir;
   doc["udpLogEnabled"] = udpLogEnabled;
+  doc["hMin"]          = hMin;
+  doc["hMax"]          = hMax;
 
   // Serialize JSON to file
   if (serializeJson(doc, file) == 0) {
@@ -225,6 +231,12 @@ void userParameters::loadFromLittleFS() {
   }
   if (doc["connectedRemote"]) {
     setConnectedRemote(doc["connectedRemote"]);
+  }
+  if (!doc["hMin"].isNull()) {
+    setHMin(doc["hMin"]);
+  }
+  if (!doc["hMax"].isNull()) {
+    setHMax(doc["hMax"]);
   }
 
   SS2K_LOG(CONFIG_LOG_TAG, "Config File Loaded: %s", configFILENAME);

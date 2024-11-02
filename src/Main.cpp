@@ -512,19 +512,21 @@ void SS2K::resetIfShiftersHeld() {
   }
 }
 
-void SS2K::setupTMCStepperDriver() {
+void SS2K::setupTMCStepperDriver(bool reset) {
   // FastAccel setup
-  engine.init();
-  stepper = engine.stepperConnectToPin(currentBoard.stepPin);
-  stepper->setDirectionPin(currentBoard.dirPin, userConfig->getStepperDir());
-  stepper->setEnablePin(currentBoard.enablePin);
-  stepper->setAutoEnable(true);
-  stepper->setSpeedInHz(DEFAULT_STEPPER_SPEED);
-  stepper->setAcceleration(STEPPER_ACCELERATION);
-  stepper->setDelayToDisable(1000);
+  if (!reset) {
+    engine.init();
+    stepper = engine.stepperConnectToPin(currentBoard.stepPin);
+    stepper->setDirectionPin(currentBoard.dirPin, userConfig->getStepperDir());
+    stepper->setEnablePin(currentBoard.enablePin);
+    stepper->setAutoEnable(true);
+    stepper->setSpeedInHz(DEFAULT_STEPPER_SPEED);
+    stepper->setAcceleration(STEPPER_ACCELERATION);
+    stepper->setDelayToDisable(1000);
+    // TMC Driver Setup
+    driver.begin();
+  }
 
-  // TMC Driver Setup
-  driver.begin();
   driver.pdn_disable(true);
   driver.mstep_reg_select(true);
   driver.microsteps(4);   // Set microsteps to 1/8th
@@ -532,23 +534,32 @@ void SS2K::setupTMCStepperDriver() {
   // power down after standstill is detected
   driver.TPOWERDOWN(128);
   driver.toff(5);
-  ss2k->updateStealthChop();
+  this->updateStealthChop();
+  this->goHome();
+  driver.irun(currentBoard.pwrScaler);
+  driver.ihold((uint8_t)(currentBoard.pwrScaler * .5));  // hold current % 0-DRIVER_MAX_PWR_SCALER
+  this->updateStepperSpeed();
+  this->updateStepperPower();
+  this->setCurrentPosition(stepper->getCurrentPosition());
+}
 
-  // test homing code
-  if (true) {
-    updateStepperPower(50);
-    driver.irun(1);  // low power
-    driver.ihold((uint8_t)(1));
-    bool stalled = false;
-    int threshold               = 0;
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+void SS2K::goHome(bool bothDirections) {
+  SS2K_LOG(MAIN_LOG_TAG, "Homing...");
+  updateStepperPower(100);
+  driver.irun(2);  // low power
+  driver.ihold((uint8_t)(1));
+  bothDirections ? this->updateStepperSpeed(800) : this->updateStepperSpeed(400);
+  bool stalled  = false;
+  int threshold = 0;
+  vTaskDelay(1000 / portTICK_PERIOD_MS);
+  if (bothDirections) {
     stepper->runForward();
     vTaskDelay(250 / portTICK_PERIOD_MS);  // wait until stable
     threshold = driver.SG_RESULT();        // take reading
     Serial.printf("%d ", driver.SG_RESULT());
     vTaskDelay(250 / portTICK_PERIOD_MS);
     while (!stalled) {
-      stalled = (driver.SG_RESULT() < threshold - 50);
+      stalled = (driver.SG_RESULT() < threshold - 100);
     }
     stalled = false;
     stepper->forceStop();
@@ -556,26 +567,25 @@ void SS2K::setupTMCStepperDriver() {
     vTaskDelay(2000 / portTICK_PERIOD_MS);
     rtConfig->setMaxStep(stepper->getCurrentPosition() - 200);
     stepper->enableOutputs();
-    stepper->runBackward();
-    vTaskDelay(250 / portTICK_PERIOD_MS);
-    threshold = driver.SG_RESULT();
-    Serial.printf("%d ", driver.SG_RESULT());
-    vTaskDelay(250 / portTICK_PERIOD_MS);
-    while (!stalled) {
-      stalled = (driver.SG_RESULT() < threshold - 50);
-    }
-    stepper->forceStop();
-    stepper->disableOutputs();
-    vTaskDelay(100 / portTICK_PERIOD_MS);
-    rtConfig->setMinStep(stepper->getCurrentPosition() + 200);
-    stepper->enableOutputs();
   }
-
-  driver.irun(currentBoard.pwrScaler);
-  driver.ihold((uint8_t)(currentBoard.pwrScaler * .5));  // hold current % 0-DRIVER_MAX_PWR_SCALER
-  ss2k->updateStepperSpeed();
-  ss2k->updateStepperPower();
-  ss2k->setCurrentPosition(stepper->getCurrentPosition());
+  stepper->runBackward();
+  vTaskDelay(250 / portTICK_PERIOD_MS);
+  threshold = driver.SG_RESULT();
+  Serial.printf("%d ", driver.SG_RESULT());
+  vTaskDelay(250 / portTICK_PERIOD_MS);
+  while (!stalled) {
+    stalled = (driver.SG_RESULT() < threshold - 100);
+  }
+  stepper->forceStop();
+  stepper->disableOutputs();
+  vTaskDelay(100 / portTICK_PERIOD_MS);
+  stepper->setCurrentPosition((int32_t)0);
+  rtConfig->setMinStep(stepper->getCurrentPosition() + userConfig->getShiftStep());
+  stepper->enableOutputs();
+  if (bothDirections) {
+    userConfig->setHMin(rtConfig->getMinStep());
+    userConfig->setHMax(rtConfig->getMaxStep());
+  }
 }
 
 // Applies current power to driver

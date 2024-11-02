@@ -60,7 +60,7 @@ class SS2K {
   void startTasks();
   void stopTasks();
   void restartWifi();
-  void setupTMCStepperDriver();
+  void setupTMCStepperDriver(bool reset = false);
   void updateStepperPower(int pwr = 0);
   void updateStealthChop();
   void updateStepperSpeed(int speed = 0);
@@ -70,6 +70,7 @@ class SS2K {
   static void rxSerial(void);
   void txSerial();
   void pelotonConnected();
+  void goHome(bool bothDirections = false);
 
   SS2K() {
     targetPosition      = 0;

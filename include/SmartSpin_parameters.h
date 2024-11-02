@@ -124,6 +124,8 @@ class userParameters {
   bool stepperDir;
   bool shifterDir;
   bool udpLogEnabled = false;
+  int32_t hMin = INT32_MIN;
+  int32_t hMax = INT32_MIN;
 
   bool FTMSControlPointWrite = false;
   String ssid;
@@ -199,6 +201,12 @@ class userParameters {
 
   void setFoundDevices(String fdv) { foundDevices = fdv; }
   const char* getFoundDevices() { return foundDevices.c_str(); }
+
+  void setHMin(int32_t min) { hMin = min; }
+  int32_t getHMin() { return hMin; }
+
+  void setHMax(int32_t max) { hMax = max; }
+  int32_t getHMax() { return hMax; }
 
   void setDefaults();
   String returnJSON();

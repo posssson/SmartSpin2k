@@ -331,7 +331,7 @@ bool BLE_Fitness_Machine_Service::spinDown() {
   }
   if (rxValue[1] == 0x04) {
     // debugDirector("Stop Pedaling", true);
-    vTaskDelay(1000 / portTICK_RATE_MS);
+    ss2k->goHome(true);
     spinStatus[1] = 0x02;  // Success
     fitnessMachineStatusCharacteristic->setValue(spinStatus, 2);
   }
