@@ -193,7 +193,7 @@ void SS2K::maintenanceLoop(void *pvParameters) {
     // If we're in ERG mode, modify shift commands to inc/dec the target watts instead.
     ss2k->FTMSModeShiftModifier();
     // If we have a resistance bike attached, slow down when we're close to the limits.
-    if (ss2k->pelotonIsConnected) {
+    if (ss2k->pelotonIsConnected && !rtConfig->getHomed()) {
       int speed           = userConfig->getStepperSpeed();
       float resistance    = rtConfig->resistance.getValue();
       float maxResistance = rtConfig->getMaxResistance();
@@ -360,11 +360,11 @@ void SS2K::FTMSModeShiftModifier() {
             ((ss2k->targetPosition + shiftDelta * userConfig->getShiftStep()) > rtConfig->getMaxStep())) {
           SS2K_LOG(MAIN_LOG_TAG, "Shift Blocked by stepper limits.");
           rtConfig->setShifterPosition(ss2k->lastShifterPosition);
-        } else if ((rtConfig->resistance.getValue() <= rtConfig->getMinResistance()) && (shiftDelta > 0)) {
+        } else if ((rtConfig->resistance.getValue() <= rtConfig->getMinResistance()) && (shiftDelta > 0) && !rtConfig->getHomed()) {
           // User Shifted in the proper direction - allow
-        } else if ((rtConfig->resistance.getValue() >= rtConfig->getMaxResistance()) && (shiftDelta < 0)) {
+        } else if ((rtConfig->resistance.getValue() >= rtConfig->getMaxResistance()) && (shiftDelta < 0) && !rtConfig->getHomed()) {
           // User Shifted in the proper direction - allow
-        } else if ((rtConfig->resistance.getValue() > rtConfig->getMinResistance()) && (rtConfig->resistance.getValue() < rtConfig->getMaxResistance())) {
+        } else if ((rtConfig->resistance.getValue() > rtConfig->getMinResistance()) && (rtConfig->resistance.getValue() < rtConfig->getMaxResistance()) && !rtConfig->getHomed()) {
           // User Shifted in bounds - allow
         } else {
           // User tried shifting further into the limit - block.
@@ -424,7 +424,7 @@ void SS2K::moveStepper() {
       vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 
-    if (ss2k->pelotonIsConnected) {
+    if (ss2k->pelotonIsConnected && !rtConfig->getHomed()) {
       if ((rtConfig->resistance.getValue() > rtConfig->getMinResistance()) && (rtConfig->resistance.getValue() < rtConfig->getMaxResistance())) {
         stepper->moveTo(ss2k->targetPosition);
       } else if (rtConfig->resistance.getValue() <= rtConfig->getMinResistance()) {  // Limit Stepper to Min Resistance

@@ -134,7 +134,7 @@ void PowerTable::processPowerValue(PowerBuffer& powerBuffer, int cadence, Measur
 void PowerTable::setStepperMinMax() {
   int32_t _return = RETURN_ERROR;
 
-  // if Homing was preformed, skip estimating mun_max
+  // if Homing was preformed, skip estimating min_max
   if (rtConfig->getHomed()) {
     SS2K_LOG(ERG_MODE_LOG_TAG, "Using detected travel limits during homing");
     return;
