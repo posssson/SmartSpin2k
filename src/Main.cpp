@@ -362,11 +362,13 @@ void SS2K::FTMSModeShiftModifier() {
             ((ss2k->targetPosition + shiftDelta * userConfig->getShiftStep()) > rtConfig->getMaxStep())) {
           SS2K_LOG(MAIN_LOG_TAG, "Shift Blocked by stepper limits.");
           rtConfig->setShifterPosition(ss2k->lastShifterPosition);
-        } else if ((rtConfig->resistance.getValue() <= rtConfig->getMinResistance()) && (shiftDelta > 0) && !rtConfig->getHomed()) {
+        } else if (rtConfig->getHomed()) {
+          // was homed. Allow because previous test would have failed if out of bounds.
+        } else if ((rtConfig->resistance.getValue() <= rtConfig->getMinResistance()) && (shiftDelta > 0)) {
           // User Shifted in the proper direction - allow
-        } else if ((rtConfig->resistance.getValue() >= rtConfig->getMaxResistance()) && (shiftDelta < 0) && !rtConfig->getHomed()) {
+        } else if ((rtConfig->resistance.getValue() >= rtConfig->getMaxResistance()) && (shiftDelta < 0)) {
           // User Shifted in the proper direction - allow
-        } else if ((rtConfig->resistance.getValue() > rtConfig->getMinResistance()) && (rtConfig->resistance.getValue() < rtConfig->getMaxResistance()) && !rtConfig->getHomed()) {
+        } else if ((rtConfig->resistance.getValue() > rtConfig->getMinResistance()) && (rtConfig->resistance.getValue() < rtConfig->getMaxResistance())) {
           // User Shifted in bounds - allow
         } else {
           // User tried shifting further into the limit - block.
