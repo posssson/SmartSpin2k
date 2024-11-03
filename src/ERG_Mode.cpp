@@ -37,6 +37,9 @@ void PowerTable::runERG() {
     if (ss2k->isUpdating) {
       return;
     }
+    if (spinBLEServer.spinDownFlag) {
+      return;
+    }
 
     if (rtConfig->cad.getValue() > 0 && rtConfig->watts.getValue() > 0) {
       hasConnectedPowerMeter = spinBLEClient.connectedPM;

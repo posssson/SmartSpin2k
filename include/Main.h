@@ -48,11 +48,11 @@ class SS2K {
   static void IRAM_ATTR shiftDown();
   static void moveStepper();
 
-  //the position the stepper motor will move to 
+  // the position the stepper motor will move to
   int32_t getTargetPosition() { return targetPosition; }
   void setTargetPosition(int32_t tp) { targetPosition = tp; }
 
-  //the position the stepper motor is currently at
+  // the position the stepper motor is currently at
   int32_t getCurrentPosition() { return currentPosition; }
   void setCurrentPosition(int32_t cp) { currentPosition = cp; }
 

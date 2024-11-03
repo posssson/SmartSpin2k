@@ -160,6 +160,7 @@ void setup() {
                           20,                        /* priority of the task */
                           &maintenanceLoopTask,      /* Task handle to keep track of created task */
                           1);                        /* pin task to core */
+  spinBLEServer.spinDownFlag = 1;
 }
 
 void loop() {  // Delete this task so we can make one that's more memory efficient.
@@ -304,6 +305,9 @@ void SS2K::maintenanceLoop(void *pvParameters) {
 #endif  // UNIT_TEST
 
 void SS2K::FTMSModeShiftModifier() {
+  if (spinBLEServer.spinDownFlag) {
+    return;
+  }
   int shiftDelta = rtConfig->getShifterPosition() - ss2k->lastShifterPosition;
   if (shiftDelta) {  // Shift detected
     switch (rtConfig->getFTMSMode()) {
@@ -384,6 +388,9 @@ void SS2K::restartWifi() {
 }
 
 void SS2K::moveStepper() {
+  if (spinBLEServer.spinDownFlag) {
+    return;
+  }
   bool _stepperDir = userConfig->getStepperDir();
   if (stepper) {
     ss2k->stepperIsRunning = stepper->isRunning();
@@ -535,7 +542,6 @@ void SS2K::setupTMCStepperDriver(bool reset) {
   driver.TPOWERDOWN(128);
   driver.toff(5);
   this->updateStealthChop();
-  this->goHome();
   driver.irun(currentBoard.pwrScaler);
   driver.ihold((uint8_t)(currentBoard.pwrScaler * .5));  // hold current % 0-DRIVER_MAX_PWR_SCALER
   this->updateStepperSpeed();
@@ -548,7 +554,11 @@ void SS2K::goHome(bool bothDirections) {
   updateStepperPower(100);
   driver.irun(2);  // low power
   driver.ihold((uint8_t)(1));
-  bothDirections ? this->updateStepperSpeed(800) : this->updateStepperSpeed(400);
+  if (bothDirections) {
+    this->updateStepperSpeed(800);
+  } else {
+    this->updateStepperSpeed(400);
+  }
   bool stalled  = false;
   int threshold = 0;
   vTaskDelay(1000 / portTICK_PERIOD_MS);
@@ -586,6 +596,7 @@ void SS2K::goHome(bool bothDirections) {
     userConfig->setHMin(rtConfig->getMinStep());
     userConfig->setHMax(rtConfig->getMaxStep());
   }
+  this->setupTMCStepperDriver(true);
 }
 
 // Applies current power to driver
