@@ -600,6 +600,8 @@ void SS2K::goHome(bool bothDirections) {
   rtConfig->setMinStep(stepper->getCurrentPosition() + userConfig->getShiftStep());
   SS2K_LOG(MAIN_LOG_TAG, "Min Position found: %d.", rtConfig->getMinStep());
   stepper->enableOutputs();
+  
+  //Start Saving Settings
   if (bothDirections) {
     userConfig->setHMin(rtConfig->getMinStep());
     userConfig->setHMax(rtConfig->getMaxStep());
