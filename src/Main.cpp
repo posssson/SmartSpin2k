@@ -552,19 +552,16 @@ void SS2K::setupTMCStepperDriver(bool reset) {
 }
 
 void SS2K::goHome(bool bothDirections) {
-    if(currentBoard.name != r2_NAME){
-        SS2K_LOG(MAIN_LOG_TAG, "Board Doesn't support homing");
-        return;
-    }
+  if (currentBoard.name != r2_NAME) {
+    SS2K_LOG(MAIN_LOG_TAG, "Board Doesn't support homing");
+    return;
+  }
   SS2K_LOG(MAIN_LOG_TAG, "Homing...");
   updateStepperPower(100);
   driver.irun(2);  // low power
   driver.ihold((uint8_t)(1));
-  if (bothDirections) {
-    this->updateStepperSpeed(800);
-  } else {
-    this->updateStepperSpeed(400);
-  }
+  this->updateStepperSpeed(800);
+
   bool stalled  = false;
   int threshold = 0;
   vTaskDelay(1000 / portTICK_PERIOD_MS);
@@ -575,7 +572,7 @@ void SS2K::goHome(bool bothDirections) {
     Serial.printf("%d ", driver.SG_RESULT());
     vTaskDelay(250 / portTICK_PERIOD_MS);
     while (!stalled) {
-      stalled = (driver.SG_RESULT() < threshold - 100);
+      stalled = (driver.SG_RESULT() < threshold - 75);
     }
     stalled = false;
     stepper->forceStop();
@@ -591,7 +588,7 @@ void SS2K::goHome(bool bothDirections) {
   Serial.printf("%d ", driver.SG_RESULT());
   vTaskDelay(250 / portTICK_PERIOD_MS);
   while (!stalled) {
-    stalled = (driver.SG_RESULT() < threshold - 100);
+    stalled = (driver.SG_RESULT() < threshold - 75);
   }
   stepper->forceStop();
   stepper->disableOutputs();
@@ -600,13 +597,13 @@ void SS2K::goHome(bool bothDirections) {
   rtConfig->setMinStep(stepper->getCurrentPosition() + userConfig->getShiftStep());
   SS2K_LOG(MAIN_LOG_TAG, "Min Position found: %d.", rtConfig->getMinStep());
   stepper->enableOutputs();
-  
-  //Start Saving Settings
+
+  // Start Saving Settings
   if (bothDirections) {
     userConfig->setHMin(rtConfig->getMinStep());
     userConfig->setHMax(rtConfig->getMaxStep());
   }
-  //In case this was only one direction homing.
+  // In case this was only one direction homing.
   rtConfig->setMaxStep(userConfig->getHMax());
   userConfig->saveToLittleFS();
   this->setupTMCStepperDriver(true);
