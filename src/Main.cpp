@@ -160,7 +160,9 @@ void setup() {
                           20,                        /* priority of the task */
                           &maintenanceLoopTask,      /* Task handle to keep track of created task */
                           1);                        /* pin task to core */
-  spinBLEServer.spinDownFlag = 1;
+  if (userConfig->getHMax() != INT32_MIN && userConfig->getHMin() != INT32_MIN) {
+    spinBLEServer.spinDownFlag = 1;
+  }
 }
 
 void loop() {  // Delete this task so we can make one that's more memory efficient.
@@ -550,6 +552,10 @@ void SS2K::setupTMCStepperDriver(bool reset) {
 }
 
 void SS2K::goHome(bool bothDirections) {
+    if(currentBoard.name != r2_NAME){
+        SS2K_LOG(MAIN_LOG_TAG, "Board Doesn't support homing");
+        return;
+    }
   SS2K_LOG(MAIN_LOG_TAG, "Homing...");
   updateStepperPower(100);
   driver.irun(2);  // low power
@@ -576,6 +582,7 @@ void SS2K::goHome(bool bothDirections) {
     stepper->disableOutputs();
     vTaskDelay(2000 / portTICK_PERIOD_MS);
     rtConfig->setMaxStep(stepper->getCurrentPosition() - 200);
+    SS2K_LOG(MAIN_LOG_TAG, "Max Position found: %d.", rtConfig->getMaxStep());
     stepper->enableOutputs();
   }
   stepper->runBackward();
@@ -591,11 +598,13 @@ void SS2K::goHome(bool bothDirections) {
   vTaskDelay(100 / portTICK_PERIOD_MS);
   stepper->setCurrentPosition((int32_t)0);
   rtConfig->setMinStep(stepper->getCurrentPosition() + userConfig->getShiftStep());
+  SS2K_LOG(MAIN_LOG_TAG, "Min Position found: %d.", rtConfig->getMinStep());
   stepper->enableOutputs();
   if (bothDirections) {
     userConfig->setHMin(rtConfig->getMinStep());
     userConfig->setHMax(rtConfig->getMaxStep());
   }
+  userConfig->saveToLittleFS();
   this->setupTMCStepperDriver(true);
 }
 
