@@ -604,6 +604,8 @@ void SS2K::goHome(bool bothDirections) {
     userConfig->setHMin(rtConfig->getMinStep());
     userConfig->setHMax(rtConfig->getMaxStep());
   }
+  //In case this was only one direction homing.
+  rtConfig->setMaxStep(userConfig->getHMax());
   userConfig->saveToLittleFS();
   this->setupTMCStepperDriver(true);
 }
