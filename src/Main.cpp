@@ -160,6 +160,8 @@ void setup() {
                           20,                        /* priority of the task */
                           &maintenanceLoopTask,      /* Task handle to keep track of created task */
                           1);                        /* pin task to core */
+
+  // if we have homing data, use that instead.
   if (userConfig->getHMax() != INT32_MIN && userConfig->getHMin() != INT32_MIN) {
     spinBLEServer.spinDownFlag = 1;
   }
