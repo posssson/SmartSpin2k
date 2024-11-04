@@ -249,6 +249,7 @@ void SS2K::maintenanceLoop(void *pvParameters) {
     if (ss2k->resetDefaultsFlag) {
       LittleFS.format();
       userConfig->setDefaults();
+      powerTable->reset();
       userConfig->saveToLittleFS();
       ss2k->resetDefaultsFlag = false;
       ss2k->rebootFlag        = true;
