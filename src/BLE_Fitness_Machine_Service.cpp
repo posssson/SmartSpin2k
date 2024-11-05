@@ -130,29 +130,28 @@ void BLE_Fitness_Machine_Service::processFTMSWrite() {
       switch ((uint8_t)rxValue[0]) {
         case FitnessMachineControlPointProcedure::RequestControl:
           returnValue[2] = FitnessMachineControlPointResultCode::Success;  // 0x01;
-          pCharacteristic->setValue(returnValue, 3);
-          rtConfig->watts.setTarget(0); 
-          rtConfig->setSimTargetWatts(false); 
+          rtConfig->watts.setTarget(0);
+          rtConfig->setSimTargetWatts(false);
           logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "-> Control Request");
           ftmsTrainingStatus[1] = FitnessMachineTrainingStatus::Idle;  // 0x01;
           fitnessMachineTrainingStatus->setValue(ftmsTrainingStatus, 2);
           ftmsStatus = {FitnessMachineStatus::StartedOrResumedByUser};
+          pCharacteristic->setValue(returnValue, 3);
           break;
 
         case FitnessMachineControlPointProcedure::Reset: {
           returnValue[2] = FitnessMachineControlPointResultCode::Success;  // 0x01;
-          pCharacteristic->setValue(returnValue, 3);
 
           logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "-> Reset");
           ftmsTrainingStatus[1] = FitnessMachineTrainingStatus::Idle;  // 0x01;
           ftmsStatus            = {FitnessMachineStatus::Reset};
           fitnessMachineTrainingStatus->setValue(ftmsTrainingStatus, 2);
+          pCharacteristic->setValue(returnValue, 3);
         } break;
 
         case FitnessMachineControlPointProcedure::SetTargetInclination: {
           rtConfig->setFTMSMode((uint8_t)rxValue[0]);
           returnValue[2] = FitnessMachineControlPointResultCode::Success;  // 0x01;
-          pCharacteristic->setValue(returnValue, 3);
 
           port = (rxValue[2] << 8) + rxValue[1];
           port *= 10;
@@ -164,6 +163,7 @@ void BLE_Fitness_Machine_Service::processFTMSWrite() {
           ftmsStatus            = {FitnessMachineStatus::TargetInclineChanged, (uint8_t)rxValue[1], (uint8_t)rxValue[2]};
           ftmsTrainingStatus[1] = FitnessMachineTrainingStatus::Other;  // 0x00;
           fitnessMachineTrainingStatus->setValue(ftmsTrainingStatus, 2);
+          pCharacteristic->setValue(returnValue, 3);
         } break;
 
         case FitnessMachineControlPointProcedure::SetTargetResistanceLevel: {
@@ -266,13 +266,16 @@ void BLE_Fitness_Machine_Service::processFTMSWrite() {
         case FitnessMachineControlPointProcedure::SpinDownControl: {
           rtConfig->setFTMSMode((uint8_t)rxValue[0]);
           uint8_t controlPoint[6] = {FitnessMachineControlPointProcedure::ResponseCode, 0x01, 0x24, 0x03, 0x96, 0x0e};  // send low and high speed targets
+          returnValue[2]          = FitnessMachineControlPointResultCode::Success;
           pCharacteristic->setValue(controlPoint, 6);
           logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "-> Spin Down Requested");
 
           ftmsStatus = {FitnessMachineStatus::SpinDownStatus, 0x01};  // send low and high speed targets
 
           ftmsTrainingStatus[1] = FitnessMachineTrainingStatus::Other;  // 0x00;
-          fitnessMachineTrainingStatus->setValue(ftmsTrainingStatus, 2);
+          pCharacteristic->setValue(returnValue, 3);
+          pCharacteristic->indicate();
+          spinBLEServer.spinDownFlag = 2;
         } break;
 
         case FitnessMachineControlPointProcedure::SetTargetedCadence: {
@@ -307,8 +310,6 @@ void BLE_Fitness_Machine_Service::processFTMSWrite() {
       fitnessMachineTrainingStatus->setValue(ftmsTrainingStatus, 2);
       fitnessMachineTrainingStatus->notify(false);
     }
-    for (int i = 0; i < ftmsStatus.size(); i++) {
-    }
     fitnessMachineStatusCharacteristic->setValue(ftmsStatus.data(), ftmsStatus.size());
     pCharacteristic->indicate();
     fitnessMachineTrainingStatus->notify(false);
@@ -322,30 +323,42 @@ bool BLE_Fitness_Machine_Service::spinDown() {
     return false;
   }
   uint8_t spinStatus[2] = {0x14, 0x01};
-
+  SS2K_LOG(FMTS_SERVER_LOG_TAG, "Spin Status: %d", rxValue[1]);
+  Serial.printf("Spin Status: %d", rxValue[1]);
   if (rxValue[1] == 0x01) {
-    // debugDirector("Spin Down Initiated", true);
+    SS2K_LOG(FMTS_SERVER_LOG_TAG, "Spin Down Initiated");
+    Serial.printf("Spin Down Initiated");
     vTaskDelay(1000 / portTICK_RATE_MS);
     spinStatus[1] = 0x04;  // send Stop Pedaling
     fitnessMachineStatusCharacteristic->setValue(spinStatus, 2);
-  }
-  if (rxValue[1] == 0x04) {
-    // debugDirector("Stop Pedaling", true);
+    fitnessMachineStatusCharacteristic->notify();
     vTaskDelay(1000 / portTICK_RATE_MS);
     spinStatus[1] = 0x02;  // Success
     fitnessMachineStatusCharacteristic->setValue(spinStatus, 2);
+    fitnessMachineStatusCharacteristic->notify();
+    ss2k->goHome(true);
+  }
+
+  if (rxValue[1] == 0x04) {
+    SS2K_LOG(FMTS_SERVER_LOG_TAG, "Stop Pedaling");
+    Serial.printf("Stop Pedaling");
+    vTaskDelay(1000 / portTICK_RATE_MS);
+    spinStatus[1] = 0x02;  // Success
+    fitnessMachineStatusCharacteristic->setValue(spinStatus, 2);
+    fitnessMachineStatusCharacteristic->notify();
   }
   if (rxValue[1] == 0x02) {
-    // debugDirector("Success", true);
+    SS2K_LOG(FMTS_SERVER_LOG_TAG, "Success");
+    Serial.printf("Success");
     spinStatus[0] = 0x00;
     spinStatus[1] = 0x00;  // Success
     fitnessMachineStatusCharacteristic->setValue(spinStatus, 2);
     uint8_t returnValue[3] = {0x00, 0x00, 0x00};
     fitnessMachineControlPoint->setValue(returnValue, 3);
     fitnessMachineControlPoint->indicate();
+    fitnessMachineStatusCharacteristic->notify();
+    ss2k->goHome(true);
   }
-
-  fitnessMachineStatusCharacteristic->notify();
 
   return true;
 }
