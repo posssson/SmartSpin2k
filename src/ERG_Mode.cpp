@@ -73,6 +73,7 @@ void PowerTable::runERG() {
       userConfig->setHMin(-DEFAULT_STEPPER_TRAVEL);
       userConfig->setHMax(DEFAULT_STEPPER_TRAVEL);
       rtConfig->setHomed(false);
+      userConfig->saveToLittleFS();
     }
     loopCounter++;
   }

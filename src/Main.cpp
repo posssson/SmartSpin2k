@@ -562,11 +562,17 @@ void SS2K::goHome(bool bothDirections) {
     return;
   }
   SS2K_LOG(MAIN_LOG_TAG, "Homing...");
-  updateStepperPower(100);
-  driver.irun(2);  // low power
-  driver.ihold((uint8_t)(1));
-  this->updateStepperSpeed(800);
-
+  int _IFCNT = driver.IFCNT();  // Number of UART commands rx by driver
+  while (driver.IFCNT() < _IFCNT + 3) {
+    SS2K_LOG(MAIN_LOG_TAG, "Updating driver...");
+    updateStepperPower(100);
+    vTaskDelay(50 / portTICK_PERIOD_MS);
+    driver.irun(2);  // low power
+    vTaskDelay(50 / portTICK_PERIOD_MS);
+    driver.ihold((uint8_t)(1));
+    vTaskDelay(50 / portTICK_PERIOD_MS);
+    this->updateStepperSpeed(800);
+  }
   bool stalled  = false;
   int threshold = 0;
   vTaskDelay(1000 / portTICK_PERIOD_MS);
@@ -599,6 +605,7 @@ void SS2K::goHome(bool bothDirections) {
   stepper->disableOutputs();
   vTaskDelay(100 / portTICK_PERIOD_MS);
   stepper->setCurrentPosition((int32_t)0);
+  ss2k->setTargetPosition(0);
   rtConfig->setMinStep(stepper->getCurrentPosition() + userConfig->getShiftStep());
   SS2K_LOG(MAIN_LOG_TAG, "Min Position found: %d.", rtConfig->getMinStep());
   stepper->enableOutputs();
