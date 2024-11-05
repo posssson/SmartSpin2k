@@ -70,8 +70,8 @@ void PowerTable::runERG() {
 
     if (ss2k->resetPowerTableFlag) {
       powerTable->reset();
-      userConfig->setHMin(-DEFAULT_STEPPER_TRAVEL);
-      userConfig->setHMax(DEFAULT_STEPPER_TRAVEL);
+      userConfig->setHMin(INT32_MIN);
+      userConfig->setHMax(INT32_MIN);
       rtConfig->setHomed(false);
       userConfig->saveToLittleFS();
     }
