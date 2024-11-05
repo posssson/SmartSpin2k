@@ -58,6 +58,8 @@ const uint8_t BLE_resetPowerTable       = 0x26;  // Delete all power table infor
 const uint8_t BLE_powerTableData        = 0x27;  // sets or requests power table data
 const uint8_t BLE_simulatedTargetWatts  = 0x28;  // current target watts
 const uint8_t BLE_simulateTargetWatts   = 0x29;  // are we sending target watts
+const uint8_t BLE_hMin                  = 0x2A;  // Minimum homing value
+const uint8_t BLE_hMax                  = 0x2B;  // Maximum homing value
 
 class BLE_ss2kCustomCharacteristic {
  public:

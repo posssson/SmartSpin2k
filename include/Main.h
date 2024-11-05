@@ -48,11 +48,11 @@ class SS2K {
   static void IRAM_ATTR shiftDown();
   static void moveStepper();
 
-  //the position the stepper motor will move to 
+  // the position the stepper motor will move to
   int32_t getTargetPosition() { return targetPosition; }
   void setTargetPosition(int32_t tp) { targetPosition = tp; }
 
-  //the position the stepper motor is currently at
+  // the position the stepper motor is currently at
   int32_t getCurrentPosition() { return currentPosition; }
   void setCurrentPosition(int32_t cp) { currentPosition = cp; }
 
@@ -60,8 +60,8 @@ class SS2K {
   void startTasks();
   void stopTasks();
   void restartWifi();
-  void setupTMCStepperDriver();
-  void updateStepperPower();
+  void setupTMCStepperDriver(bool reset = false);
+  void updateStepperPower(int pwr = 0);
   void updateStealthChop();
   void updateStepperSpeed(int speed = 0);
   void checkDriverTemperature();
@@ -70,6 +70,7 @@ class SS2K {
   static void rxSerial(void);
   void txSerial();
   void pelotonConnected();
+  void goHome(bool bothDirections = false);
 
   SS2K() {
     targetPosition      = 0;
