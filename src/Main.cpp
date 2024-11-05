@@ -563,16 +563,14 @@ void SS2K::goHome(bool bothDirections) {
   }
   SS2K_LOG(MAIN_LOG_TAG, "Homing...");
   int _IFCNT = driver.IFCNT();  // Number of UART commands rx by driver
-  while (driver.IFCNT() < _IFCNT + 3) {
-    SS2K_LOG(MAIN_LOG_TAG, "Updating driver...");
-    updateStepperPower(100);
-    vTaskDelay(50 / portTICK_PERIOD_MS);
-    driver.irun(2);  // low power
-    vTaskDelay(50 / portTICK_PERIOD_MS);
-    driver.ihold((uint8_t)(1));
-    vTaskDelay(50 / portTICK_PERIOD_MS);
-    this->updateStepperSpeed(800);
-  }
+  SS2K_LOG(MAIN_LOG_TAG, "Updating driver...");
+  updateStepperPower(100);
+  vTaskDelay(50 / portTICK_PERIOD_MS);
+  driver.irun(2);  // low power
+  vTaskDelay(50 / portTICK_PERIOD_MS);
+  driver.ihold((uint8_t)(1));
+  vTaskDelay(50 / portTICK_PERIOD_MS);
+  this->updateStepperSpeed(1500);
   bool stalled  = false;
   int threshold = 0;
   vTaskDelay(1000 / portTICK_PERIOD_MS);
@@ -583,7 +581,8 @@ void SS2K::goHome(bool bothDirections) {
     Serial.printf("%d ", driver.SG_RESULT());
     vTaskDelay(250 / portTICK_PERIOD_MS);
     while (!stalled) {
-      stalled = (driver.SG_RESULT() < threshold - 75);
+      // stalled = (threshold < 200); // Were we already at the stop?
+      stalled = (driver.SG_RESULT() < threshold - 100);
     }
     stalled = false;
     stepper->forceStop();
