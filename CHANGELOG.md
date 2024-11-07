@@ -13,13 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Hardware
 
-
 ## [24.11.5]
 
 ### Added
-- Knob homing if calibrate trainer is selected in an app. 
+- Knob homing if calibrate trainer is selected in an app.
 
 ### Changed
+- Added backing off of the stop before we test to prevent runaway grinding during homing. 
+- User can abort homing by pressing shifter. 
 
 ### Hardware
 
