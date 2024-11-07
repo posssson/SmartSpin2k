@@ -570,18 +570,27 @@ void SS2K::goHome(bool bothDirections) {
   vTaskDelay(50 / portTICK_PERIOD_MS);
   driver.ihold((uint8_t)(1));
   vTaskDelay(50 / portTICK_PERIOD_MS);
-  this->updateStepperSpeed(1500);
-  bool stalled  = false;
   int threshold = 0;
-  vTaskDelay(1000 / portTICK_PERIOD_MS);
+  bool stalled  = false;
   if (bothDirections) {
+    // Back off limit in case we are alread here.
+    stepper->move(-userConfig->getShiftStep());
+    while (stepper->isRunning()) {
+      vTaskDelay(50 / portTICK_PERIOD_MS);
+    }
+    this->updateStepperSpeed(1500);
+    vTaskDelay(500 / portTICK_PERIOD_MS);
     stepper->runForward();
     vTaskDelay(250 / portTICK_PERIOD_MS);  // wait until stable
     threshold = driver.SG_RESULT();        // take reading
     Serial.printf("%d ", driver.SG_RESULT());
     vTaskDelay(250 / portTICK_PERIOD_MS);
     while (!stalled) {
-      // stalled = (threshold < 200); // Were we already at the stop?
+      if (abs(rtConfig->getShifterPosition() - ss2k->lastShifterPosition)) {  // let the user abort with the shift button.
+        userConfig->setHMin(INT32_MIN);
+        userConfig->setHMax(INT32_MIN);
+        return;
+      }
       stalled = (driver.SG_RESULT() < threshold - 100);
     }
     stalled = false;
@@ -591,6 +600,13 @@ void SS2K::goHome(bool bothDirections) {
     rtConfig->setMaxStep(stepper->getCurrentPosition() - 200);
     SS2K_LOG(MAIN_LOG_TAG, "Max Position found: %d.", rtConfig->getMaxStep());
     stepper->enableOutputs();
+  } else {  // Back off limit in case we are alread here.
+    stepper->move(userConfig->getShiftStep());
+    while (stepper->isRunning()) {
+      vTaskDelay(50 / portTICK_PERIOD_MS);
+    }
+    this->updateStepperSpeed(1500);
+    vTaskDelay(500 / portTICK_PERIOD_MS);
   }
   stepper->runBackward();
   vTaskDelay(250 / portTICK_PERIOD_MS);
@@ -598,6 +614,11 @@ void SS2K::goHome(bool bothDirections) {
   Serial.printf("%d ", driver.SG_RESULT());
   vTaskDelay(250 / portTICK_PERIOD_MS);
   while (!stalled) {
+    if (abs(rtConfig->getShifterPosition() - ss2k->lastShifterPosition)) {  // let the user abort with the shift button.
+      userConfig->setHMin(INT32_MIN);
+      userConfig->setHMax(INT32_MIN);
+      return;
+    }
     stalled = (driver.SG_RESULT() < threshold - 75);
   }
   stepper->forceStop();
