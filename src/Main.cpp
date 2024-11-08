@@ -414,19 +414,27 @@ void SS2K::moveStepper() {
         }
         ss2k->targetPosition = rtConfig->getTargetIncline();
       } else if (rtConfig->getFTMSMode() == FitnessMachineControlPointProcedure::SetTargetResistanceLevel) {
+        rtConfig->setTargetIncline(ss2k->currentPosition + ((rtConfig->resistance.getTarget() - rtConfig->resistance.getValue()) * 20));
         ss2k->targetPosition = rtConfig->getTargetIncline();
       } else {
         // Simulation Mode
         ss2k->targetPosition = rtConfig->getShifterPosition() * userConfig->getShiftStep();
         ss2k->targetPosition += rtConfig->getTargetIncline() * userConfig->getInclineMultiplier();
       }
+    } else {
+      // periodically log external control message
+      static long int lastTime = millis();
+      if (millis() - lastTime > 5000) {
+        SS2K_LOG(MAIN_LOG_TAG, "External Control Mode");
+        lastTime = millis();
+      }
     }
 
     if (ss2k->syncMode) {
       stepper->stopMove();
-      vTaskDelay(100 / portTICK_PERIOD_MS);
+      SS2K_LOG(MAIN_LOG_TAG, "Sync Mode");
       stepper->setCurrentPosition(ss2k->targetPosition);
-      vTaskDelay(100 / portTICK_PERIOD_MS);
+      ss2k->syncMode = false;
     }
 
     if (ss2k->pelotonIsConnected && !rtConfig->getHomed()) {
@@ -557,32 +565,61 @@ void SS2K::setupTMCStepperDriver(bool reset) {
 }
 
 void SS2K::goHome(bool bothDirections) {
-  if (currentBoard.name != r2_NAME) {
-    SS2K_LOG(MAIN_LOG_TAG, "Board Doesn't support homing");
-    return;
-  }
-  SS2K_LOG(MAIN_LOG_TAG, "Homing...");
-  int _IFCNT = driver.IFCNT();  // Number of UART commands rx by driver
-  SS2K_LOG(MAIN_LOG_TAG, "Updating driver...");
-  updateStepperPower(100);
-  vTaskDelay(50 / portTICK_PERIOD_MS);
-  driver.irun(2);  // low power
-  vTaskDelay(50 / portTICK_PERIOD_MS);
-  driver.ihold((uint8_t)(1));
-  vTaskDelay(50 / portTICK_PERIOD_MS);
-  int threshold = 0;
-  bool stalled  = false;
-  if (bothDirections) {
-    // Back off limit in case we are alread here.
-    stepper->move(-userConfig->getShiftStep());
-    while (stepper->isRunning()) {
-      vTaskDelay(50 / portTICK_PERIOD_MS);
+  if (stepper) {
+    if (currentBoard.name != r2_NAME) {
+      SS2K_LOG(MAIN_LOG_TAG, "Board Doesn't support homing");
+      return;
     }
-    this->updateStepperSpeed(1500);
-    vTaskDelay(500 / portTICK_PERIOD_MS);
-    stepper->runForward();
-    vTaskDelay(250 / portTICK_PERIOD_MS);  // wait until stable
-    threshold = driver.SG_RESULT();        // take reading
+    SS2K_LOG(MAIN_LOG_TAG, "Homing...");
+    int _IFCNT = driver.IFCNT();  // Number of UART commands rx by driver
+    SS2K_LOG(MAIN_LOG_TAG, "Updating driver...");
+    updateStepperPower(100);
+    vTaskDelay(50 / portTICK_PERIOD_MS);
+    driver.irun(2);  // low power
+    vTaskDelay(50 / portTICK_PERIOD_MS);
+    driver.ihold((uint8_t)(1));
+    vTaskDelay(50 / portTICK_PERIOD_MS);
+    int threshold = 0;
+    bool stalled  = false;
+    if (bothDirections) {
+      // Back off limit in case we are alread here.
+      stepper->move(-userConfig->getShiftStep());
+      while (stepper->isRunning()) {
+        vTaskDelay(50 / portTICK_PERIOD_MS);
+      }
+      this->updateStepperSpeed(1500);
+      vTaskDelay(500 / portTICK_PERIOD_MS);
+      stepper->runForward();
+      vTaskDelay(250 / portTICK_PERIOD_MS);  // wait until stable
+      threshold = driver.SG_RESULT();        // take reading
+      Serial.printf("%d ", driver.SG_RESULT());
+      vTaskDelay(250 / portTICK_PERIOD_MS);
+      while (!stalled) {
+        if (abs(rtConfig->getShifterPosition() - ss2k->lastShifterPosition)) {  // let the user abort with the shift button.
+          userConfig->setHMin(INT32_MIN);
+          userConfig->setHMax(INT32_MIN);
+          return;
+        }
+        stalled = (driver.SG_RESULT() < threshold - 100);
+      }
+      stalled = false;
+      stepper->forceStop();
+      stepper->disableOutputs();
+      vTaskDelay(2000 / portTICK_PERIOD_MS);
+      rtConfig->setMaxStep(stepper->getCurrentPosition() - 200);
+      SS2K_LOG(MAIN_LOG_TAG, "Max Position found: %d.", rtConfig->getMaxStep());
+      stepper->enableOutputs();
+    } else {  // Back off limit in case we are alread here.
+      stepper->move(userConfig->getShiftStep());
+      while (stepper->isRunning()) {
+        vTaskDelay(50 / portTICK_PERIOD_MS);
+      }
+      this->updateStepperSpeed(1500);
+      vTaskDelay(500 / portTICK_PERIOD_MS);
+    }
+    stepper->runBackward();
+    vTaskDelay(250 / portTICK_PERIOD_MS);
+    threshold = driver.SG_RESULT();
     Serial.printf("%d ", driver.SG_RESULT());
     vTaskDelay(250 / portTICK_PERIOD_MS);
     while (!stalled) {
@@ -591,44 +628,21 @@ void SS2K::goHome(bool bothDirections) {
         userConfig->setHMax(INT32_MIN);
         return;
       }
-      stalled = (driver.SG_RESULT() < threshold - 100);
+      stalled = (driver.SG_RESULT() < threshold - 75);
     }
-    stalled = false;
     stepper->forceStop();
     stepper->disableOutputs();
-    vTaskDelay(2000 / portTICK_PERIOD_MS);
-    rtConfig->setMaxStep(stepper->getCurrentPosition() - 200);
-    SS2K_LOG(MAIN_LOG_TAG, "Max Position found: %d.", rtConfig->getMaxStep());
-    stepper->enableOutputs();
-  } else {  // Back off limit in case we are alread here.
-    stepper->move(userConfig->getShiftStep());
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+    stepper->moveTo(stepper->getCurrentPosition() + userConfig->getShiftStep());
     while (stepper->isRunning()) {
-      vTaskDelay(50 / portTICK_PERIOD_MS);
+      vTaskDelay(10 / portTICK_PERIOD_MS);
     }
-    this->updateStepperSpeed(1500);
-    vTaskDelay(500 / portTICK_PERIOD_MS);
+    stepper->setCurrentPosition((int32_t)0);
+    ss2k->setTargetPosition(0);
+    rtConfig->setMinStep(0);
+    SS2K_LOG(MAIN_LOG_TAG, "Min Position found: %d.", rtConfig->getMinStep());
+    stepper->enableOutputs();
   }
-  stepper->runBackward();
-  vTaskDelay(250 / portTICK_PERIOD_MS);
-  threshold = driver.SG_RESULT();
-  Serial.printf("%d ", driver.SG_RESULT());
-  vTaskDelay(250 / portTICK_PERIOD_MS);
-  while (!stalled) {
-    if (abs(rtConfig->getShifterPosition() - ss2k->lastShifterPosition)) {  // let the user abort with the shift button.
-      userConfig->setHMin(INT32_MIN);
-      userConfig->setHMax(INT32_MIN);
-      return;
-    }
-    stalled = (driver.SG_RESULT() < threshold - 75);
-  }
-  stepper->forceStop();
-  stepper->disableOutputs();
-  vTaskDelay(100 / portTICK_PERIOD_MS);
-  stepper->setCurrentPosition((int32_t)0);
-  ss2k->setTargetPosition(0);
-  rtConfig->setMinStep(stepper->getCurrentPosition() + userConfig->getShiftStep());
-  SS2K_LOG(MAIN_LOG_TAG, "Min Position found: %d.", rtConfig->getMinStep());
-  stepper->enableOutputs();
 
   // Start Saving Settings
   if (bothDirections) {
