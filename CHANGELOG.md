@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+
+### Hardware
+
+
+## [24.11.7]
+
+### Added
+
+### Changed
 - Homing refinements.
 - Resistance shifting improvement.
 - Reduced Peloton logging to 1/sec.
