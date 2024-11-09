@@ -328,21 +328,17 @@ bool BLE_Fitness_Machine_Service::spinDown() {
   if (rxValue[1] == 0x01) {
     SS2K_LOG(FMTS_SERVER_LOG_TAG, "Spin Down Initiated");
     Serial.printf("Spin Down Initiated");
-    vTaskDelay(1000 / portTICK_RATE_MS);
+    vTaskDelay(5000 / portTICK_RATE_MS);
+    spinStatus[1] = 0x01;  // Initiated
+    fitnessMachineStatusCharacteristic->setValue(spinStatus, 2);
+    fitnessMachineStatusCharacteristic->notify();
+    vTaskDelay(5000 / portTICK_RATE_MS);
     spinStatus[1] = 0x04;  // send Stop Pedaling
     fitnessMachineStatusCharacteristic->setValue(spinStatus, 2);
     fitnessMachineStatusCharacteristic->notify();
-    vTaskDelay(1000 / portTICK_RATE_MS);
-    spinStatus[1] = 0x02;  // Success
-    fitnessMachineStatusCharacteristic->setValue(spinStatus, 2);
-    fitnessMachineStatusCharacteristic->notify();
-    ss2k->goHome(true);
-  }
-
-  if (rxValue[1] == 0x04) {
     SS2K_LOG(FMTS_SERVER_LOG_TAG, "Stop Pedaling");
     Serial.printf("Stop Pedaling");
-    vTaskDelay(1000 / portTICK_RATE_MS);
+    vTaskDelay(5000 / portTICK_RATE_MS);
     spinStatus[1] = 0x02;  // Success
     fitnessMachineStatusCharacteristic->setValue(spinStatus, 2);
     fitnessMachineStatusCharacteristic->notify();
@@ -357,7 +353,6 @@ bool BLE_Fitness_Machine_Service::spinDown() {
     fitnessMachineControlPoint->setValue(returnValue, 3);
     fitnessMachineControlPoint->indicate();
     fitnessMachineStatusCharacteristic->notify();
-    ss2k->goHome(true);
   }
 
   return true;
