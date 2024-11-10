@@ -607,7 +607,7 @@ void SS2K::goHome(bool bothDirections) {
     rtConfig->setMinStep(0);
     SS2K_LOG(MAIN_LOG_TAG, "Min Position found: %d.", rtConfig->getMinStep());
     stalled = false;
-    fitnessMachineService.spinDown(0x04);
+    fitnessMachineService.spinDown(0x02);
     if (bothDirections) {
       // Back off limit in case we are alread here.
       this->updateStepperSpeed(1500);
