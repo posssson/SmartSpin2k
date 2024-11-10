@@ -312,8 +312,8 @@ const char* const DEFAULT_PASSWORD = "password";
 #define BLE_RECONNECT_SCAN_DURATION 5
 
 // Task Stack Sizes
-#define MAIN_STACK 6000
-#define BLE_CLIENT_STACK 5500
+#define MAIN_STACK 6500
+#define BLE_CLIENT_STACK 6000
 
 // Uncomment to enable stack size debugging info
 // #define DEBUG_STACK
