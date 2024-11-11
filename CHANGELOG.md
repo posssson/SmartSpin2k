@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Working with resistance mode on QZ & Peloton
 
 ### Hardware
-
+- Added Sunny B1805
 
 ## [24.11.7]
 
