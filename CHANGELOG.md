@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Multiple Homing refinements.
 - Working with resistance mode on QZ & Peloton
+- PowerTable Import via Custom Characteristic fixed. 
 
 ### Hardware
 

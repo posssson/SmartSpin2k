@@ -670,12 +670,13 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
       }
       if (rxValue[0] == cc_write) {
         returnValue[0] = cc_success;
-        if (rxValue[3]) {
-          for (int i = 0; i < POWERTABLE_WATT_SIZE; i += 2) {
-            powerTable->tableRow[rxValue[3]].tableEntry[i].targetPosition = (int16_t((uint8_t)(rxValue[i + 3]) << 0 | (uint8_t)(rxValue[i + 4]) << 8));
+        if (rxValue[2] >= 0 || rxValue[2] < POWERTABLE_CAD_SIZE) {
+          for (int i = 0; i < POWERTABLE_WATT_SIZE; i++) {
+            powerTable->tableRow[rxValue[2]].tableEntry[i].targetPosition = (int16_t((uint8_t)(rxValue[i*2 + 3]) << 0 | (uint8_t)(rxValue[i*2 + 4]) << 8));
           }
         } else {
-          SS2K_LOG(CUSTOM_CHAR_LOG_TAG, "No table row specified");
+          //SS2K_LOG(CUSTOM_CHAR_LOG_TAG, "Table row invalid");
+          // Logging causes crashes in ISR
         }
       }
       break;
