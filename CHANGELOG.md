@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+
+### Hardware
+
+
+## [24.11.10]
+
+### Added
+
+### Changed
 - Multiple Homing refinements.
 - Working with resistance mode on QZ & Peloton
 - Check for cadence (before homing) so that we don't home when nobody is around.
