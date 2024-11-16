@@ -468,7 +468,11 @@ void SS2K::moveStepper() {
       }
     }
 
-    if (connectedClientCount() > 0) {
+    if (rtConfig->cad.getValue() > 1) {
+      stepper->enableOutputs();
+      stepper->setAutoEnable(false);
+    }else{
+      stepper->setAutoEnable(true);
     }
 
     if (_stepperDir != userConfig->getStepperDir()) {  // User changed the config direction of the stepper wires
