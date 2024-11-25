@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multiple Homing refinements.
 - Working with resistance mode on QZ & Peloton
 - PowerTable Import via Custom Characteristic fixed. 
+- Check for cadence (before homing) so that we don't home when nobody is around.
+- Don't depower the stepper if there is cadence. 
 
 ### Hardware
 
