@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Hardware
+- Decreased tolerances around bearings and gears.
 
 
 ## [24.11.10]
