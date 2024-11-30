@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Hardware
-
+- Added rubber band holder to Peloton.
 
 ## [24.11.16]
 
