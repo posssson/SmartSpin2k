@@ -468,7 +468,11 @@ void SS2K::moveStepper() {
       }
     }
 
-    if (connectedClientCount() > 0) {
+    if (rtConfig->cad.getValue() > 1) {
+      stepper->enableOutputs();
+      stepper->setAutoEnable(false);
+    }else{
+      stepper->setAutoEnable(true);
     }
 
     if (_stepperDir != userConfig->getStepperDir()) {  // User changed the config direction of the stepper wires
@@ -594,7 +598,7 @@ void SS2K::goHome(bool bothDirections) {
         userConfig->setHMax(INT32_MIN);
         return;
       }
-      stalled = (driver.SG_RESULT() < threshold - 50);
+      stalled = (driver.SG_RESULT() < threshold - userConfig->getHomingSensitivity());
     }
     stepper->forceStop();
     vTaskDelay(100 / portTICK_PERIOD_MS);
@@ -623,7 +627,7 @@ void SS2K::goHome(bool bothDirections) {
           userConfig->setHMax(INT32_MIN);
           return;
         }
-        stalled = (driver.SG_RESULT() < threshold - 100);
+        stalled = (driver.SG_RESULT() < threshold - userConfig->getHomingSensitivity());
       }
       stepper->forceStop();
       fitnessMachineService.spinDown(0x02);
