@@ -21,7 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Hardware
-- Added rubber band holder to Peloton.
+- Added rubber band holder to Peloton mount.
+- Decreased Peloton insert size slightly. 
+- Added rubber band holder to IC4/C6 mount.
 
 ## [24.11.16]
 
