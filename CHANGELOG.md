@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+- Fixes homing not being removed after powertable reset.
+- Shifting will always abort homing, even if homing hasn't been preformed yet. 
 
 ### Hardware
 
