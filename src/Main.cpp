@@ -598,7 +598,7 @@ void SS2K::goHome(bool bothDirections) {
         userConfig->setHMax(INT32_MIN);
         return;
       }
-      stalled = (driver.SG_RESULT() < threshold - 50);
+      stalled = (driver.SG_RESULT() < threshold - userConfig->getHomingSensitivity());
     }
     stepper->forceStop();
     vTaskDelay(100 / portTICK_PERIOD_MS);
@@ -627,7 +627,7 @@ void SS2K::goHome(bool bothDirections) {
           userConfig->setHMax(INT32_MIN);
           return;
         }
-        stalled = (driver.SG_RESULT() < threshold - 100);
+        stalled = (driver.SG_RESULT() < threshold - userConfig->getHomingSensitivity());
       }
       stepper->forceStop();
       fitnessMachineService.spinDown(0x02);

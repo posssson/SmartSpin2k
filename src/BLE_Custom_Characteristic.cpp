@@ -229,7 +229,7 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
     } break;
 
     case BLE_deviceName:  // 0x07
-      logBufLength = snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "<-deviceName");
+      logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "<-deviceName");
       if (rxValue[0] == cc_read) {
         returnValue[0] = cc_success;
         returnString   = userConfig->getDeviceName();
@@ -740,6 +740,26 @@ void BLE_ss2kCustomCharacteristic::process(std::string rxValue) {
         logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, " (%f)", userConfig->getHMax());
       }
       break;
+
+    case BLE_homingSensitivity:  // 0x2C
+      logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "<-homingSensitivity");
+      if (rxValue[0] == cc_read) {
+        returnValue[0] = cc_success;
+        returnValue[2] = (uint8_t)(userConfig->getHomingSensitivity() & 0xff);
+        returnValue[3] = (uint8_t)(userConfig->getHomingSensitivity() >> 8);
+        returnLength += 2;
+      }
+      if (rxValue[0] == cc_write) {
+        returnValue[0] = cc_success;
+        userConfig->setHomingSensitivity(bytes_to_u16(rxValue[3], rxValue[2]));
+        logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "(%d)", userConfig->getHomingSensitivity());
+      }
+      break;
+
+    default:
+      logBufLength += snprintf(logBuf + logBufLength, kLogBufCapacity - logBufLength, "<-Unknown Characteristic");
+      returnValue[0] = cc_error;
+      break;
   }
 
   SS2K_LOG(CUSTOM_CHAR_LOG_TAG, "%s", logBuf);
@@ -895,10 +915,14 @@ void BLE_ss2kCustomCharacteristic::parseNemit() {
     BLE_ss2kCustomCharacteristic::notify(BLE_hMin);
     return;
   }
-
   if (userConfig->getHMax() != _oldParams.getHMax()) {
     _oldParams.setHMax(userConfig->getHMax());
     BLE_ss2kCustomCharacteristic::notify(BLE_hMax);
+    return;
+  }
+  if (userConfig->getHomingSensitivity() != _oldParams.getHomingSensitivity()) {
+    _oldParams.setHomingSensitivity(userConfig->getHomingSensitivity());
+    BLE_ss2kCustomCharacteristic::notify(BLE_homingSensitivity);
     return;
   }
 }
