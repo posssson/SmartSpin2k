@@ -10,6 +10,7 @@ Bowflex|C7|Any|45
 Bowflex|C6|Any|85
 Bowflex|IC Bike SE|Any|100
 Bowflex|Velocore|150
+Dmasun|Any|Any|55
 Echelon|Connect Sport|Any| 105
 HMC|HMC|Any|60mm
 JLL|IC400|Any|35-45
