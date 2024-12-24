@@ -13,3 +13,5 @@ SmartSpin_logfile.txt
 build/CMakeCache.txt
 *.log
 .DS_Store
+.aider*
+.env

@@ -12,7 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Hardware
-
+- added bike mount for Joroto X2 and any other bike with hex shape front tube
+- replaced old inserts for Joroto X2 with new 60.5
 
 ## [24.12.7]
 
