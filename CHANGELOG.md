@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Hardware
 - Added Dmasun bike
 - Added Equinox Soul Cycle
+- Added Sole SB700
 
 ## [24.12.7]
 
