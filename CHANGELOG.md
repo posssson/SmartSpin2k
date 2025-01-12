@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Hardware
 
 
+## [25.1.10]
+
+### Added
+
+### Changed
+- Added checks for IC SE Bike Connection. 
+
+### Hardware
+
+
 ## [24.12.8]
 
 ### Added
@@ -24,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added Dmasun bike
 - Added Equinox Soul Cycle
 - Added Sole SB700
+- added bike mount for Joroto X2 and any other bike with hex shape front tube
+- replaced old inserts for Joroto X2 with new 60.5
 
 ## [24.12.7]
 
