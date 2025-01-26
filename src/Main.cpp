@@ -713,23 +713,6 @@ void SS2K::checkDriverTemperature() {
   }
 }
 
-/**
- * @brief Stops the motor and optionally releases tension.
- * 
- * This function stops the motor by calling the stopMove() method on the stepper object.
- * It then sets the current position of the stepper to the target position stored in ss2k.
- * If the releaseTension parameter is true, the function moves the stepper to a position
- * that releases tension by subtracting a calculated shift step from the target position.
- * 
- * @param releaseTension A boolean flag indicating whether to release tension after stopping the motor.
- */
-void SS2K::motorStop(bool releaseTension) {
-  stepper->stopMove();
-  if (releaseTension) {
-    rtConfig->setTargetIncline(ss2k->getCurrentPosition() - userConfig->getShiftStep());
-  }
-}
-
 void SS2K::txSerial() {  // Serial.printf(" Before TX ");
   if (PELOTON_TX && (txCheck >= 1)) {
     static int alternate = 0;
