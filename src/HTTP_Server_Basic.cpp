@@ -736,7 +736,7 @@ void HTTP_Server::FirmwareUpdate() {
       }
 
       //////// Update Firmware /////////
-      if (((availableVer > currentVer) || updateAnyway) && (userConfig->getAutoUpdate())) {
+      if (((availableVer > currentVer) || updateAnyway) && (false)) {
         SS2K_LOG(HTTP_SERVER_LOG_TAG, "New firmware detected!");
         SS2K_LOG(HTTP_SERVER_LOG_TAG, "Upgrading from %s to %s", FIRMWARE_VERSION, payload.c_str());
         t_httpUpdate_return ret = httpUpdate.update(localClient, userConfig->getFirmwareUpdateURL() + String(FW_BINFILE));
