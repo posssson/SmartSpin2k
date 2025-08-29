@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>SmartSpin2k Settings</title>
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
   <div class="page-container">
     <header>
@@ -18,21 +20,22 @@
     <main>
       <div id="loadingWatermark" class="watermark">Loading</div>
       <h1 class="brand">Settings</h1>
-      
+
       <div id="saveStatus" class="status-message"></div>
-      
+
       <form action="/send_settings">
         <div id="settingsContainer" class="settings-grid">
           <!-- Settings will be generated here by JavaScript -->
         </div>
-        
+
         <div class="button-group">
           <button type="submit" class="primary-button">Save Settings</button>
         </div>
       </form>
 
       <div class="button-group">
-        <button type="button" onclick="showLoadDefaultsConfirmation()" class="secondary-button">Reset to Defaults</button>
+        <button type="button" onclick="showLoadDefaultsConfirmation()" class="secondary-button">Reset to
+          Defaults</button>
         <a href="/reboot.html" class="warning-button">Reboot Device</a>
       </div>
 
@@ -47,7 +50,8 @@
     </main>
 
     <footer>
-      <a href="https://github.com/doudar/SmartSpin2k/wiki/Adjusting-SmartSpin2k-Settings" class="help-link">Need Help?</a>
+      <a href="https://github.com/doudar/SmartSpin2k/wiki/Adjusting-SmartSpin2k-Settings" class="help-link">Need
+        Help?</a>
     </footer>
   </div>
   <script>
@@ -80,7 +84,7 @@
         title: 'Shift Amount',
         tooltip: 'Sim Mode step size',
         tooltipText: 'Amount to move stepper per gear shift. Try to target ~30watt changes.',
-        min: 10, max: 6000, step: 50, 
+        min: 10, max: 6000, step: 50,
         defaultValue: 1200,
         unit: ''
       },
@@ -179,6 +183,13 @@
         tooltip: 'Use cadence to calculate power output',
         tooltipText: 'Use the PowerTable for Power instead of PM',
         defaultValue: false
+      },
+      ERGPIDTestMode: {
+        type: 'toggle',
+        title: 'ERG PID Auto-Tuning Test Mode',
+        tooltip: 'Experimental auto-tuning of PID parameters',
+        tooltipText: 'Enable to let the system automatically adjust Kp, Ki, Kd during rides to find optimal values for following target watts. Disable for normal fixed PID control.',
+        defaultValue: false
       }
     };
 
@@ -194,7 +205,7 @@
               ${config.tooltipText}
             </span>
           </p>`;
-      
+
       if (isPassword) {
         html += `
           <div class="input-group" style="padding: 0.5rem;">
@@ -207,7 +218,7 @@
       } else {
         html += `<input type="text" id="${id}" name="${id}" value="${config.defaultValue}" />`;
       }
-      
+
       html += `</div>`;
       return html;
     }
@@ -256,7 +267,7 @@
     function generateSettings() {
       const container = document.getElementById('settingsContainer');
       let html = '';
-      
+
       for (const [id, config] of Object.entries(settingsConfig)) {
         switch (config.type) {
           case 'text':
@@ -271,7 +282,7 @@
             break;
         }
       }
-      
+
       container.innerHTML = html;
     }
 
@@ -333,7 +344,7 @@
               }
             }
           }
-          
+
           const loadingWatermark = document.getElementById("loadingWatermark");
           if (loadingWatermark) {
             loadingWatermark.remove();
@@ -371,23 +382,23 @@
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         const params = new URLSearchParams();
-        
+
         if (element.type === 'checkbox') {
           if (element.checked) params.append(element.name, 'true');
         } else {
           params.append(element.name, element.value);
         }
-        
+
         const toggleIds = Object.entries(settingsConfig)
           .filter(([_, config]) => config.type === 'toggle')
           .map(([id, _]) => id);
-        
+
         toggleIds.forEach(id => {
           if (document.getElementById(id).checked) {
             params.append(id, 'true');
           }
         });
-        
+
         fetch('/send_settings?' + params.toString(), { method: 'GET' })
           .then(() => showSaveStatus('Settings saved', 'success'))
           .catch(error => showSaveStatus('Failed to save settings', 'error'));
@@ -400,4 +411,5 @@
     });
   </script>
 </body>
+
 </html>

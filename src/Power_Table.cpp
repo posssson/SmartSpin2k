@@ -48,40 +48,35 @@ int PowerBuffer::getReadings() {
   return ret;
 }
 
-static PowerFilter powerFilter; // global filter instance
-// PowerPID disabled for testing
-
 void PowerTable::processPowerValue(PowerBuffer& powerBuffer, int cadence, Measurement watts) {
-  // Add raw values to smoothing filter
-  powerFilter.addCadence(cadence);
-  powerFilter.addWatts(watts.getValue());
-
-  // Use filtered values
-  int filteredCad = powerFilter.getFilteredCadence();
-  int filteredWatts = powerFilter.getFilteredWatts();
-
-  if ((filteredCad >= (MINIMUM_TABLE_CAD - (POWERTABLE_CAD_INCREMENT / 2))) &&
-      (filteredCad <= (MINIMUM_TABLE_CAD + (POWERTABLE_CAD_INCREMENT * POWERTABLE_CAD_SIZE) - (POWERTABLE_CAD_SIZE / 2))) && (filteredWatts > 10) &&
-      (filteredWatts < (POWERTABLE_WATT_SIZE * POWERTABLE_WATT_INCREMENT))) {
+  if ((cadence >= (MINIMUM_TABLE_CAD - (POWERTABLE_CAD_INCREMENT / 2))) &&
+      (cadence <= (MINIMUM_TABLE_CAD + (POWERTABLE_CAD_INCREMENT * POWERTABLE_CAD_SIZE) - (POWERTABLE_CAD_SIZE / 2))) && (watts.getValue() > 10) &&  // adding constraints
+      (watts.getValue() < (POWERTABLE_WATT_SIZE * POWERTABLE_WATT_INCREMENT))) {
     if (powerBuffer.powerEntry[0].readings == 0) {  // we need to make sure stepper position is not negative so it only takes positive resistance values
       // Take Initial reading
       powerBuffer.set(0);
+      // Check if the current stepper position is within a 5% range of the previous stepper position and that the current position is not negative
     }
 
     int currentPos = ss2k->getCurrentPosition() / TABLE_DIVISOR;
     int targetPos  = powerBuffer.powerEntry[0].targetPosition;
+    int range      = (userConfig->getShiftStep() * 2) / TABLE_DIVISOR;
 
-    // Bypass PID controller: always accept filtered watts directly
-    for (int i = 1; i < POWER_SAMPLES; i++) {
-      if (powerBuffer.powerEntry[i].readings == 0) {
-        powerBuffer.set(i);  // Add additional readings to the buffer.
-        break;
+    if (currentPos >= (targetPos - range) && currentPos <= (targetPos + range)) {
+      for (int i = 1; i < POWER_SAMPLES; i++) {
+        if (powerBuffer.powerEntry[i].readings == 0) {
+          powerBuffer.set(i);  // Add additional readings to the buffer.
+          break;
+        }
       }
-    }
-    if (powerBuffer.powerEntry[POWER_SAMPLES - 1].readings == 1) {  // If buffer is full, create a new table entry and clear the buffer.
-      this->newEntry(powerBuffer);
-      this->toLog();
-      this->_manageSaveState();
+      if (powerBuffer.powerEntry[POWER_SAMPLES - 1].readings == 1) {  // If buffer is full, create a new table entry and clear the buffer.
+        this->newEntry(powerBuffer);
+        this->toLog();
+        this->_manageSaveState();
+        powerBuffer.reset();
+      }
+    } else {  // Reading was outside the range - clear the buffer and start over.
+      SS2K_LOG(POWERTABLE_LOG_TAG, "Entry into buffer was outside the range. Clearing buffer.");
       powerBuffer.reset();
     }
   }

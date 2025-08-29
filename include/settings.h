@@ -227,7 +227,7 @@ const char* const DEFAULT_PASSWORD = "password";
 
 // BLE Device Generic Names
 constexpr const char* NONE = "none";
-constexpr const char* ANY = "any";
+constexpr const char* ANY  = "any";
 
 // Name of default Power Meter. any connects to anything, none connects to
 // nothing.
@@ -263,7 +263,7 @@ constexpr const char* ANY = "any";
 // Uncomment to use guardrails for ERG mode in the stepper loop.
 #define ERG_GUARDRAILS
 
-//Uncomment to enable the use of the power table for ERG mode.
+// Uncomment to enable the use of the power table for ERG mode.
 #define ERG_MODE_USE_POWER_TABLE
 
 // Uncomment to use the PID controller for ERG mode.
@@ -312,10 +312,10 @@ constexpr const char* ANY = "any";
 // Limit power table size to save memory
 #define TABLE_DIVISOR 10.0f
 
-//Max distance a failed neighbor can be horizontally from target position
+// Max distance a failed neighbor can be horizontally from target position
 #define HORIZONTAL_NEIGHBOR_RANGE 0.6f
-    
-//Max distance a failed neighbor can be vertically from target position
+
+// Max distance a failed neighbor can be vertically from target position
 #define VERTICAL_NEIGHBOR_RANGE 0.8f
 
 // Temperature of the ESP32 at which to start reducing the power output of the stepper motor driver.
@@ -336,6 +336,9 @@ constexpr const char* ANY = "any";
 // Default homing sensitivity value
 #define DEFAULT_HOMING_SENSITIVITY 50
 
+// Enable PID auto-tuning ERG test mode by default? (off)
+#define DEFAULT_ERG_PID_TESTMODE false
+
 // BLE automatic reconnect interval in milliseconds.
 #define BLE_RECONNECT_SCAN_INTERVAL 6000
 
@@ -345,7 +348,7 @@ constexpr const char* ANY = "any";
 // Task Stack Sizes
 // In theory you can subtract whatever is left in the report from DEBUG_STACK for each task
 #define MAIN_STACK       4500
-#define BLE_CLIENT_STACK 6000 //Scans and connects to BLE devices. Holds the BLE Notify Data. 
+#define BLE_CLIENT_STACK 6000  // Scans and connects to BLE devices. Holds the BLE Notify Data.
 
 // Uncomment to enable stack size debugging info
 #define DEBUG_STACK
@@ -368,4 +371,3 @@ constexpr const char* ANY = "any";
 
 // uncomment to enable bench testing of ptab4pwr
 // #define TEST_PTAB4PWR
-

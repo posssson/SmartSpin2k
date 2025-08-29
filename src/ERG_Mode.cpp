@@ -90,7 +90,7 @@ void ErgMode::runERG() {
     // only do this twice as often as ERG_MODE_DELAY
     static float previousPower             = 0;
     static unsigned long int pTab4pwrTimer = millis();
-    int _smoothPWR = 0;
+    int _smoothPWR                         = 0;
     if (millis() - pTab4pwrTimer > ERG_MODE_DELAY / 2) {
       // reset the timer.
       pTab4pwrTimer = millis();
@@ -107,11 +107,11 @@ void ErgMode::runERG() {
           saveStateTimer = millis();
         }
       }
-       // So the user knows pTab4PWR is enabled, provide some cadence feedback even if the value returned by the table is 0. 
-       int minimumPower = rtConfig->cad.getValue()/2; // 50% of the cadence value
-        _smoothPWR     = _smoothPWR < minimumPower ? round((minimumPower + previousPower) / 2.0f) : _smoothPWR;
-        rtConfig->watts.setValue(_smoothPWR);
-        previousPower = (rtConfig->watts.getValue() + previousPower) / 2;
+      // So the user knows pTab4PWR is enabled, provide some cadence feedback even if the value returned by the table is 0.
+      int minimumPower = rtConfig->cad.getValue() / 2;  // 50% of the cadence value
+      _smoothPWR       = _smoothPWR < minimumPower ? round((minimumPower + previousPower) / 2.0f) : _smoothPWR;
+      rtConfig->watts.setValue(_smoothPWR);
+      previousPower = (rtConfig->watts.getValue() + previousPower) / 2;
     }
   }
 }
@@ -222,8 +222,31 @@ void ErgMode::_setPointChangeState(int newCadence, Measurement& newWatts) {
 void ErgMode::_inSetpointState(int newCadence, Measurement& newWatts) {
   // Setting Gains For PID Loop
   float Kp = userConfig->getERGSensitivity();
-  float Ki = 0.1;
-  float Kd = 0.1;
+  // Use more conservative defaults for Ki and Kd
+  static float Ki = 0.02;
+  static float Kd = 0.05;
+
+  // Allow auto-tuning if test mode enabled
+  static float bestKp = Kp, bestKi = Ki, bestKd = Kd;
+  static float lastErrorAbs = std::numeric_limits<float>::max();
+
+  if (userConfig->getERGPIDTestMode()) {
+    // try small variations of parameters to minimize error magnitude
+    float testKp = Kp + ((rand() % 200 - 100) / 1000.0f);   // +/-0.1
+    float testKi = Ki + ((rand() % 200 - 100) / 10000.0f);  // +/-0.01
+    float testKd = Kd + ((rand() % 200 - 100) / 10000.0f);  // +/-0.01
+
+    float errorNow = fabs(newWatts.getTarget() - newWatts.getValue());
+    if (errorNow < lastErrorAbs) {
+      bestKp       = testKp;
+      bestKi       = testKi;
+      bestKd       = testKd;
+      lastErrorAbs = errorNow;
+    }
+    Kp = bestKp;
+    Ki = bestKi;
+    Kd = bestKd;
+  }
 
   static float integral  = 0.0;
   static float prevError = 0.0;
@@ -256,7 +279,7 @@ void ErgMode::_inSetpointState(int newCadence, Measurement& newWatts) {
   float derivative     = error - prevError;  // Difference between current and previous errors
   float derivativeTerm = Kd * derivative;
 
-  // final PID output
+  // Apply some smoothing/damping to PID output
   float PID_output = proportional + integralFinal + derivativeTerm;
 
   // log proportional, integral, derivative every five seconds
@@ -264,6 +287,7 @@ void ErgMode::_inSetpointState(int newCadence, Measurement& newWatts) {
   if (millis() - lastTime > 5000) {
     lastTime = millis();
     SS2K_LOG(ERG_MODE_LOG_TAG, "Proportional: %f, Integral: %f, Derivative: %f", proportional, integralFinal, derivativeTerm);
+    SS2K_LOG(ERG_MODE_LOG_TAG, "KP: %f, KI: %f, KD: %f, PID_out: %f", Kp, Ki, Kd, PID_output);
   }
 
   // Calculate new incline
