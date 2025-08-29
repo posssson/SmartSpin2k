@@ -129,6 +129,10 @@ class userParameters {
   int32_t hMax               = INT32_MIN;
   bool FTMSControlPointWrite = false;
   int homingSensitivity      = DEFAULT_HOMING_SENSITIVITY;  // Use default from settings.h
+  bool ERGPIDTestMode        = DEFAULT_ERG_PID_TESTMODE;
+  float ergKp                = DEFAULT_ERG_KP;
+  float ergKi                = DEFAULT_ERG_KI;
+  float ergKd                = DEFAULT_ERG_KD;
   String ssid;
   String password;
   String connectedPowerMeter   = CONNECTED_POWER_METER;
@@ -214,6 +218,18 @@ class userParameters {
 
   void setHomingSensitivity(int sensitivity) { homingSensitivity = sensitivity; }
   int getHomingSensitivity() { return homingSensitivity; }
+
+  void setERGPIDTestMode(bool mode) { ERGPIDTestMode = mode; }
+  bool getERGPIDTestMode() { return ERGPIDTestMode; }
+
+  void setErgKp(float kp) { ergKp = kp; }
+  float getErgKp() { return ergKp; }
+
+  void setErgKi(float ki) { ergKi = ki; }
+  float getErgKi() { return ergKi; }
+
+  void setErgKd(float kd) { ergKd = kd; }
+  float getErgKd() { return ergKd; }
 
   void setDefaults();
   String returnJSON();

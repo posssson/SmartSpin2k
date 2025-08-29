@@ -184,12 +184,32 @@
         tooltipText: 'Use the PowerTable for Power instead of PM',
         defaultValue: false
       },
-      ERGPIDTestMode: {
-        type: 'toggle',
-        title: 'ERG PID Auto-Tuning Test Mode',
-        tooltip: 'Experimental auto-tuning of PID parameters',
-        tooltipText: 'Enable to let the system automatically adjust Kp, Ki, Kd during rides to find optimal values for following target watts. Disable for normal fixed PID control.',
-        defaultValue: false
+      ErgKp: {
+        type: 'slider',
+        title: 'ERG PID - Kp',
+        tooltip: 'Proportional gain',
+        tooltipText: 'Controls the strength of correction in proportion to error.',
+        min: 0.0, max: 5.0, step: 0.01,
+        defaultValue: 1.0,
+        unit: ''
+      },
+      ErgKi: {
+        type: 'slider',
+        title: 'ERG PID - Ki',
+        tooltip: 'Integral gain',
+        tooltipText: 'Controls accumulation of past errors.',
+        min: 0.0, max: 1.0, step: 0.001,
+        defaultValue: 0.0,
+        unit: ''
+      },
+      ErgKd: {
+        type: 'slider',
+        title: 'ERG PID - Kd',
+        tooltip: 'Derivative gain',
+        tooltipText: 'Controls response based on rate of error change.',
+        min: 0.0, max: 1.0, step: 0.001,
+        defaultValue: 0.0,
+        unit: ''
       }
     };
 

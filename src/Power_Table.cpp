@@ -92,7 +92,7 @@ void PowerTable::setStepperMinMax() {
     rtConfig->setMinStep(userConfig->getHMin());
     rtConfig->setMaxStep(userConfig->getHMax());
     return;
-  } else if (rtConfig->getHomed()){
+  } else if (rtConfig->getHomed()) {
     SS2K_LOG(POWERTABLE_LOG_TAG, "HOMING VALUES NOT FOUND");
   }
 

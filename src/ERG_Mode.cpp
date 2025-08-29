@@ -221,32 +221,9 @@ void ErgMode::_setPointChangeState(int newCadence, Measurement& newWatts) {
 // PrevError
 void ErgMode::_inSetpointState(int newCadence, Measurement& newWatts) {
   // Setting Gains For PID Loop
-  float Kp = userConfig->getERGSensitivity();
-  // Use more conservative defaults for Ki and Kd
-  static float Ki = 0.02;
-  static float Kd = 0.05;
-
-  // Allow auto-tuning if test mode enabled
-  static float bestKp = Kp, bestKi = Ki, bestKd = Kd;
-  static float lastErrorAbs = std::numeric_limits<float>::max();
-
-  if (userConfig->getERGPIDTestMode()) {
-    // try small variations of parameters to minimize error magnitude
-    float testKp = Kp + ((rand() % 200 - 100) / 1000.0f);   // +/-0.1
-    float testKi = Ki + ((rand() % 200 - 100) / 10000.0f);  // +/-0.01
-    float testKd = Kd + ((rand() % 200 - 100) / 10000.0f);  // +/-0.01
-
-    float errorNow = fabs(newWatts.getTarget() - newWatts.getValue());
-    if (errorNow < lastErrorAbs) {
-      bestKp       = testKp;
-      bestKi       = testKi;
-      bestKd       = testKd;
-      lastErrorAbs = errorNow;
-    }
-    Kp = bestKp;
-    Ki = bestKi;
-    Kd = bestKd;
-  }
+  float Kp = userConfig->getErgKp();
+  float Ki = userConfig->getErgKi();
+  float Kd = userConfig->getErgKd();
 
   static float integral  = 0.0;
   static float prevError = 0.0;

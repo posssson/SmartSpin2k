@@ -339,6 +339,11 @@ constexpr const char* ANY  = "any";
 // Enable PID auto-tuning ERG test mode by default? (off)
 #define DEFAULT_ERG_PID_TESTMODE false
 
+// Default ERG PID parameters
+#define DEFAULT_ERG_KP 1.0f
+#define DEFAULT_ERG_KI 0.1f
+#define DEFAULT_ERG_KD 0.1f
+
 // BLE automatic reconnect interval in milliseconds.
 #define BLE_RECONNECT_SCAN_INTERVAL 6000
 
